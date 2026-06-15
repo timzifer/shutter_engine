@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Rollladensteuerung",
+        "description": "Wähle die globalen Entitäten für den Resolver. Alle Felder sind optional und später änderbar.",
+        "data": {
+          "sun_entity": "Sonnen-Entität",
+          "weather_entity": "Wetter-Entität",
+          "workday_entity": "Workday-Sensor",
+          "wind_entity": "Wind-/Sturm-Sensor",
+          "frost_entity": "Frost-Sensor",
+          "fire_entity": "Feuer-/Rauch-Sensor",
+          "burglary_entity": "Einbruch-/Sicherheits-Sensor"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Die Rollladensteuerung ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Rollladensteuerung",
+        "menu_options": {
+          "hub": "Globale Entitäten",
+          "rooms": "Räume (JSON)"
+        }
+      },
+      "hub": {
+        "title": "Globale Entitäten",
+        "data": {
+          "sun_entity": "Sonnen-Entität",
+          "weather_entity": "Wetter-Entität",
+          "workday_entity": "Workday-Sensor",
+          "wind_entity": "Wind-/Sturm-Sensor",
+          "frost_entity": "Frost-Sensor",
+          "fire_entity": "Feuer-/Rauch-Sensor",
+          "burglary_entity": "Einbruch-/Sicherheits-Sensor"
+        }
+      },
+      "rooms": {
+        "title": "Räume",
+        "description": "Bearbeite die Raum-/Flächen-/Cover-Struktur als JSON.",
+        "data": {
+          "rooms_json": "Räume (JSON)"
+        }
+      }
+    },
+    "error": {
+      "invalid_rooms": "Die Räume-JSON ist ungültig. Bitte Struktur prüfen."
+    }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Modus",
+        "state": {
+          "off": "Aus",
+          "sun_protection": "Sonnenschutz",
+          "eco": "Öko",
+          "heat_protection": "Wärmeschutz"
+        }
+      }
+    },
+    "switch": {
+      "lock": { "name": "Sperre" },
+      "night": { "name": "Nacht" },
+      "morning": { "name": "Morgen" },
+      "holiday": { "name": "Urlaub" }
+    },
+    "sensor": {
+      "status": { "name": "Status" }
+    }
+  }
+}

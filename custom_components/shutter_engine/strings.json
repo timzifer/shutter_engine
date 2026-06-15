@@ -1,0 +1,77 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Shutter Engine",
+        "description": "Select the global entities used by the resolver. All fields are optional and can be changed later.",
+        "data": {
+          "sun_entity": "Sun entity",
+          "weather_entity": "Weather entity",
+          "workday_entity": "Workday sensor",
+          "wind_entity": "Wind/storm sensor",
+          "frost_entity": "Frost sensor",
+          "fire_entity": "Fire/smoke sensor",
+          "burglary_entity": "Burglary/security sensor"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Shutter Engine is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Shutter Engine",
+        "menu_options": {
+          "hub": "Global entities",
+          "rooms": "Rooms (JSON)"
+        }
+      },
+      "hub": {
+        "title": "Global entities",
+        "data": {
+          "sun_entity": "Sun entity",
+          "weather_entity": "Weather entity",
+          "workday_entity": "Workday sensor",
+          "wind_entity": "Wind/storm sensor",
+          "frost_entity": "Frost sensor",
+          "fire_entity": "Fire/smoke sensor",
+          "burglary_entity": "Burglary/security sensor"
+        }
+      },
+      "rooms": {
+        "title": "Rooms",
+        "description": "Edit the room/area/cover tree as JSON.",
+        "data": {
+          "rooms_json": "Rooms (JSON)"
+        }
+      }
+    },
+    "error": {
+      "invalid_rooms": "The rooms JSON is invalid. Please check the structure."
+    }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "off": "Off",
+          "sun_protection": "Sun protection",
+          "eco": "Eco",
+          "heat_protection": "Heat protection"
+        }
+      }
+    },
+    "switch": {
+      "lock": { "name": "Lock" },
+      "night": { "name": "Night" },
+      "morning": { "name": "Morning" },
+      "holiday": { "name": "Holiday" }
+    },
+    "sensor": {
+      "status": { "name": "Status" }
+    }
+  }
+}
