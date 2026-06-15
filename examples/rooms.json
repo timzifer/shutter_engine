@@ -1,5 +1,6 @@
 [
   {
+    "area_id": "living_room",
     "name": "Living Room",
     "day_mode": "sun_protection",
     "heating_entity": "climate.living_room",

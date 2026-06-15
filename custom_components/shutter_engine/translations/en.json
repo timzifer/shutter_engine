@@ -57,8 +57,9 @@
       },
       "room_add": {
         "title": "Add room",
+        "description": "Select the Home Assistant area this room maps to.",
         "data": {
-          "name": "Room name"
+          "area_id": "Area"
         }
       },
       "room_menu": {
@@ -74,7 +75,7 @@
       "room_edit": {
         "title": "Room settings",
         "data": {
-          "name": "Room name",
+          "area_id": "Area",
           "day_mode": "Day mode",
           "heating_entity": "Heating (climate) entity",
           "target_temp": "Eco set point (°C)",
@@ -180,7 +181,8 @@
       }
     },
     "error": {
-      "invalid_rooms": "The rooms configuration is invalid. Please check the structure."
+      "invalid_rooms": "The rooms configuration is invalid. Please check the structure.",
+      "duplicate_area": "That area is already used by another room. Pick a different area."
     }
   },
   "entity": {

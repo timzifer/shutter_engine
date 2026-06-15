@@ -109,6 +109,7 @@ def _parse_area(data: dict[str, Any]) -> AreaConfig:
 
 def _parse_room(data: dict[str, Any]) -> RoomConfig:
     return RoomConfig(
+        area_id=data.get("area_id", ""),
         name=data.get("name", ""),
         day_mode=DayMode(data.get("day_mode", DayMode.OFF.value)),
         locked=bool(data.get("locked", False)),

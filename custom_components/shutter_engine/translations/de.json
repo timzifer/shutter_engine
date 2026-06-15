@@ -57,8 +57,9 @@
       },
       "room_add": {
         "title": "Raum hinzufügen",
+        "description": "Wähle den Home-Assistant-Bereich, dem dieser Raum entspricht.",
         "data": {
-          "name": "Raumname"
+          "area_id": "Bereich"
         }
       },
       "room_menu": {
@@ -74,7 +75,7 @@
       "room_edit": {
         "title": "Raum-Einstellungen",
         "data": {
-          "name": "Raumname",
+          "area_id": "Bereich",
           "day_mode": "Tagesmodus",
           "heating_entity": "Heizung (Climate)-Entität",
           "target_temp": "Öko-Sollwert (°C)",
@@ -180,7 +181,8 @@
       }
     },
     "error": {
-      "invalid_rooms": "Die Räume-Konfiguration ist ungültig. Bitte Struktur prüfen."
+      "invalid_rooms": "Die Räume-Konfiguration ist ungültig. Bitte Struktur prüfen.",
+      "duplicate_area": "Dieser Bereich wird bereits von einem anderen Raum verwendet. Bitte wähle einen anderen Bereich."
     }
   },
   "entity": {

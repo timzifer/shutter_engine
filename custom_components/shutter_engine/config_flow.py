@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers.selector import (
+    AreaSelector,
     BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
@@ -90,7 +92,7 @@ def _hub_schema(defaults: dict[str, Any]) -> vol.Schema:
 class ShutterEngineConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the initial setup."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         # Single instance: the hub aggregates everything.
@@ -193,6 +195,23 @@ class ShutterEngineOptionsFlow(OptionsFlow):
     def _current(self) -> dict[str, Any]:
         return {**self._entry.data, **self._entry.options}
 
+    def _area_name(self, area_id: str | None) -> str | None:
+        """Resolve an ``area_id`` to its current Home Assistant area name."""
+
+        if not area_id:
+            return None
+        area = ar.async_get(self.hass).async_get_area(area_id)
+        return area.name if area is not None else None
+
+    def _area_in_use(self, area_id: str, *, exclude: int | None = None) -> bool:
+        """Return whether another room already maps to ``area_id``."""
+
+        return any(
+            room.get("area_id") == area_id
+            for idx, room in enumerate(self._rooms)
+            if idx != exclude
+        )
+
     def _room(self) -> dict[str, Any]:
         return self._rooms[self._room_idx]  # type: ignore[index]
 
@@ -227,6 +246,7 @@ class ShutterEngineOptionsFlow(OptionsFlow):
                 rooms = json.loads(user_input["rooms_json"])
                 if not isinstance(rooms, list):
                     raise ValueError("rooms must be a list")
+                _validate_room_areas(rooms)
                 parse_config({"hub": current.get("hub", {}), "rooms": rooms})
             except (ValueError, KeyError):
                 errors["base"] = "invalid_rooms"
@@ -260,19 +280,32 @@ class ShutterEngineOptionsFlow(OptionsFlow):
                 self._room_idx = int(choice)
                 return await self.async_step_room_menu()
 
-        names = [r.get("name") or f"Room {i + 1}" for i, r in enumerate(self._rooms)]
+        names = [
+            self._area_name(r.get("area_id"))
+            or r.get("name")
+            or r.get("area_id")
+            or f"Room {i + 1}"
+            for i, r in enumerate(self._rooms)
+        ]
         schema = _nav_schema(
             names, add_label="Add room", tail_value=_DONE, tail_label="Save & finish"
         )
         return self.async_show_form(step_id="rooms", data_schema=schema, errors=errors)
 
     async def async_step_room_add(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            self._rooms.append({"name": user_input["name"], "areas": []})
-            self._room_idx = len(self._rooms) - 1
-            return await self.async_step_room_menu()
-        schema = vol.Schema({vol.Required("name"): TextSelector()})
-        return self.async_show_form(step_id="room_add", data_schema=schema)
+            area_id = user_input["area_id"]
+            if self._area_in_use(area_id):
+                errors["base"] = "duplicate_area"
+            else:
+                self._rooms.append(
+                    {"area_id": area_id, "name": self._area_name(area_id) or "", "areas": []}
+                )
+                self._room_idx = len(self._rooms) - 1
+                return await self.async_step_room_menu()
+        schema = vol.Schema({vol.Required("area_id"): AreaSelector()})
+        return self.async_show_form(step_id="room_add", data_schema=schema, errors=errors)
 
     async def async_step_room_menu(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         return self.async_show_menu(
@@ -282,23 +315,29 @@ class ShutterEngineOptionsFlow(OptionsFlow):
 
     async def async_step_room_edit(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         room = self._room()
+        errors: dict[str, str] = {}
         if user_input is not None:
-            _update(room, user_input, str_keys=("name",))
-            _update_optional(
-                room,
-                user_input,
-                entity_keys=("heating_entity", "room_temp_entity"),
-                float_keys=("target_temp", "max_temp"),
-            )
-            if "day_mode" in user_input:
-                room["day_mode"] = user_input["day_mode"]
-            return await self.async_step_room_menu()
+            area_id = user_input["area_id"]
+            if self._area_in_use(area_id, exclude=self._room_idx):
+                errors["base"] = "duplicate_area"
+            else:
+                room["area_id"] = area_id
+                room["name"] = self._area_name(area_id) or ""
+                _update_optional(
+                    room,
+                    user_input,
+                    entity_keys=("heating_entity", "room_temp_entity"),
+                    float_keys=("target_temp", "max_temp"),
+                )
+                if "day_mode" in user_input:
+                    room["day_mode"] = user_input["day_mode"]
+                return await self.async_step_room_menu()
 
         schema = vol.Schema(
             {
                 vol.Required(
-                    "name", description={"suggested_value": room.get("name")}
-                ): TextSelector(),
+                    "area_id", description={"suggested_value": room.get("area_id")}
+                ): AreaSelector(),
                 **_dict(_opt("day_mode", room, _select(_DAY_MODES))),
                 **_dict(
                     _opt(
@@ -318,7 +357,7 @@ class ShutterEngineOptionsFlow(OptionsFlow):
                 **_dict(_opt("max_temp", room, _number(minimum=10, maximum=40, step=0.5))),
             }
         )
-        return self.async_show_form(step_id="room_edit", data_schema=schema)
+        return self.async_show_form(step_id="room_edit", data_schema=schema, errors=errors)
 
     async def async_step_room_time(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         room = self._room()
@@ -602,12 +641,17 @@ def _opt2(form_key: str, store: dict[str, Any], store_key: str, selector: Any) -
     )
 
 
-def _update(
-    target: dict[str, Any], user_input: dict[str, Any], *, str_keys: tuple[str, ...]
-) -> None:
-    for key in str_keys:
-        if key in user_input:
-            target[key] = user_input[key]
+def _validate_room_areas(rooms: list[Any]) -> None:
+    """Ensure every room carries a non-empty, unique ``area_id``."""
+
+    seen: set[str] = set()
+    for room in rooms:
+        area_id = room.get("area_id") if isinstance(room, dict) else None
+        if not area_id:
+            raise ValueError("each room needs a non-empty area_id")
+        if area_id in seen:
+            raise ValueError(f"duplicate area_id: {area_id}")
+        seen.add(area_id)
 
 
 def _update_optional(

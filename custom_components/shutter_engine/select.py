@@ -8,7 +8,7 @@ from homeassistant.components.select import SelectEntity
 
 from .const import DOMAIN
 from .engine import DayMode
-from .entity import ShutterEngineRoomEntity
+from .entity import ShutterEngineRoomEntity, resolve_room_display
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -26,7 +26,14 @@ async def async_setup_entry(
     """Set up the room mode selects."""
 
     coordinator: ShutterEngineCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(RoomModeSelect(coordinator, room.name) for room in coordinator.rooms)
+    async_add_entities(
+        RoomModeSelect(
+            coordinator,
+            room.area_id,
+            resolve_room_display(hass, room.area_id, room.name or room.area_id),
+        )
+        for room in coordinator.rooms
+    )
 
 
 class RoomModeSelect(ShutterEngineRoomEntity, SelectEntity):
@@ -35,13 +42,15 @@ class RoomModeSelect(ShutterEngineRoomEntity, SelectEntity):
     _attr_translation_key = "mode"
     _attr_options = [mode.value for mode in DayMode]
 
-    def __init__(self, coordinator: ShutterEngineCoordinator, room_name: str) -> None:
-        super().__init__(coordinator, room_name)
+    def __init__(
+        self, coordinator: ShutterEngineCoordinator, area_id: str, display_name: str
+    ) -> None:
+        super().__init__(coordinator, area_id, display_name)
         self._attr_unique_id = f"{self._unique_prefix}_mode"
 
     @property
     def current_option(self) -> str:
-        return self.coordinator.room_controls(self._room_name).day_mode.value
+        return self.coordinator.room_controls(self._area_id).day_mode.value
 
     async def async_select_option(self, option: str) -> None:
-        await self.coordinator.async_set_room_control(self._room_name, day_mode=DayMode(option))
+        await self.coordinator.async_set_room_control(self._area_id, day_mode=DayMode(option))
