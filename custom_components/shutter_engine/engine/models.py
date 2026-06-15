@@ -149,8 +149,14 @@ class TimeFunction:
 
 @dataclass
 class RoomConfig(_InheritableDefaults):
-    """A room, exposed as a Home Assistant device."""
+    """A room, exposed as a Home Assistant device.
 
+    Identified by the Home Assistant ``area_id`` it is bound to. ``name`` is
+    only a cached display label resolved from the area registry; it is never
+    used as a key (the ``area_id`` is).
+    """
+
+    area_id: str = ""
     name: str = ""
     day_mode: DayMode = DayMode.OFF
     locked: bool = False

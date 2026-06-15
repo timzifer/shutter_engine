@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from homeassistant.components.sensor import SensorEntity
 
 from .const import DOMAIN
-from .entity import ShutterEngineRoomEntity
+from .entity import ShutterEngineRoomEntity, resolve_room_display
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -25,7 +25,14 @@ async def async_setup_entry(
     """Set up the per-room status sensors."""
 
     coordinator: ShutterEngineCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(RoomStatusSensor(coordinator, room.name) for room in coordinator.rooms)
+    async_add_entities(
+        RoomStatusSensor(
+            coordinator,
+            room.area_id,
+            resolve_room_display(hass, room.area_id, room.name or room.area_id),
+        )
+        for room in coordinator.rooms
+    )
 
 
 class RoomStatusSensor(ShutterEngineRoomEntity, SensorEntity):
@@ -34,13 +41,15 @@ class RoomStatusSensor(ShutterEngineRoomEntity, SensorEntity):
     _attr_translation_key = "status"
     _attr_icon = "mdi:window-shutter-cog"
 
-    def __init__(self, coordinator: ShutterEngineCoordinator, room_name: str) -> None:
-        super().__init__(coordinator, room_name)
+    def __init__(
+        self, coordinator: ShutterEngineCoordinator, area_id: str, display_name: str
+    ) -> None:
+        super().__init__(coordinator, area_id, display_name)
         self._attr_unique_id = f"{self._unique_prefix}_status"
 
     @property
     def native_value(self) -> str:
-        results = self.coordinator.cover_results_for_room(self._room_name)
+        results = self.coordinator.cover_results_for_room(self._area_id)
         if not results:
             return "idle"
         # Summarize with the most relevant (first) cover; details in attributes.
@@ -48,5 +57,5 @@ class RoomStatusSensor(ShutterEngineRoomEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, str]:
-        results = self.coordinator.cover_results_for_room(self._room_name)
+        results = self.coordinator.cover_results_for_room(self._area_id)
         return {result.decision.reason.value: result.status_text for result in results}

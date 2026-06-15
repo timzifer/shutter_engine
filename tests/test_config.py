@@ -20,7 +20,8 @@ def _sample() -> dict:
         },
         "rooms": [
             {
-                "name": "living",
+                "area_id": "living",
+                "name": "Living Room",
                 "day_mode": "sun_protection",
                 "brightness_close": 35000,
                 "night": {"enabled": True, "window_start": "20:00", "window_end": "23:00"},
@@ -57,7 +58,8 @@ def test_parse_config_structure() -> None:
     assert len(rooms) == 1
 
     room = rooms[0]
-    assert room.name == "living"
+    assert room.area_id == "living"
+    assert room.name == "Living Room"
     assert room.day_mode is DayMode.SUN_PROTECTION
     assert room.night.enabled is True
     assert len(room.areas) == 1
@@ -72,6 +74,18 @@ def test_parse_config_structure() -> None:
     assert cover.shade_type is ShadeType.VENETIAN
     assert cover.slat_tracking is False
     assert cover.mode_positions[DayMode.SUN_PROTECTION].position == 80
+
+
+def test_parse_room_area_id_defaults_empty() -> None:
+    _, rooms = parse_config({"rooms": [{"areas": []}]})
+    assert rooms[0].area_id == ""
+
+
+def test_parse_room_legacy_name_only_still_parses() -> None:
+    # Pre-v2 dicts carried only a free-text name; they must still parse.
+    _, rooms = parse_config({"rooms": [{"name": "Bedroom", "areas": []}]})
+    assert rooms[0].area_id == ""
+    assert rooms[0].name == "Bedroom"
 
 
 def test_parse_config_inheritance_end_to_end() -> None:

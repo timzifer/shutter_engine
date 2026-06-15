@@ -10,7 +10,7 @@ from homeassistant.components.switch import SwitchEntity
 
 from .const import DOMAIN
 from .coordinator import RoomControls
-from .entity import ShutterEngineRoomEntity
+from .entity import ShutterEngineRoomEntity, resolve_room_display
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -72,7 +72,12 @@ async def async_setup_entry(
 
     coordinator: ShutterEngineCoordinator = hass.data[DOMAIN][entry.entry_id]
     async_add_entities(
-        RoomControlSwitch(coordinator, room.name, description)
+        RoomControlSwitch(
+            coordinator,
+            room.area_id,
+            resolve_room_display(hass, room.area_id, room.name or room.area_id),
+            description,
+        )
         for room in coordinator.rooms
         for description in SWITCHES
     )
@@ -84,10 +89,11 @@ class RoomControlSwitch(ShutterEngineRoomEntity, SwitchEntity):
     def __init__(
         self,
         coordinator: ShutterEngineCoordinator,
-        room_name: str,
+        area_id: str,
+        display_name: str,
         description: RoomSwitchDescription,
     ) -> None:
-        super().__init__(coordinator, room_name)
+        super().__init__(coordinator, area_id, display_name)
         self.entity_description = description  # type: ignore[assignment]
         self._description = description
         self._attr_translation_key = description.translation_key
@@ -96,14 +102,14 @@ class RoomControlSwitch(ShutterEngineRoomEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return self._description.getter(self.coordinator.room_controls(self._room_name))
+        return self._description.getter(self.coordinator.room_controls(self._area_id))
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_room_control(
-            self._room_name, **{self._description.control_attr: True}
+            self._area_id, **{self._description.control_attr: True}
         )
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_room_control(
-            self._room_name, **{self._description.control_attr: False}
+            self._area_id, **{self._description.control_attr: False}
         )

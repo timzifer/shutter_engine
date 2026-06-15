@@ -164,7 +164,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         self._covers = {}
         for room in self.rooms:
             self._room_controls.setdefault(
-                room.name,
+                room.area_id,
                 RoomControls(
                     day_mode=room.day_mode,
                     locked=room.locked,
@@ -185,8 +185,8 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
         stored = await self._store.async_load() or {}
         saved_rooms = stored.get("__rooms__", {})
-        for name, controls in self._room_controls.items():
-            saved_room = saved_rooms.get(name)
+        for area_id, controls in self._room_controls.items():
+            saved_room = saved_rooms.get(area_id)
             if saved_room:
                 controls.day_mode = DayMode(saved_room.get("day_mode", controls.day_mode))
                 controls.locked = bool(saved_room.get("locked", controls.locked))
@@ -318,7 +318,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
     def _resolve_cover(self, node: _CoverNode, now: datetime) -> Decision:
         cfg = node.config
         runtime = node.runtime
-        controls = self._room_controls[node.room.name]
+        controls = self._room_controls[node.room.area_id]
         cover_state = self.hass.states.get(cfg.entity_id)
         current_position = self._state_position(cover_state)
         current_tilt = cover_state.attributes.get(ATTR_TILT_POSITION) if cover_state else None
@@ -598,27 +598,27 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             if node.runtime is not None
         }
         data["__rooms__"] = {
-            name: controls.as_dict() for name, controls in self._room_controls.items()
+            area_id: controls.as_dict() for area_id, controls in self._room_controls.items()
         }
         await self._store.async_save(data)
 
     # -- room control API (used by the room entities) ----------------------
 
-    def room_controls(self, room_name: str) -> RoomControls:
-        return self._room_controls[room_name]
+    def room_controls(self, area_id: str) -> RoomControls:
+        return self._room_controls[area_id]
 
-    def cover_results_for_room(self, room_name: str) -> list[CoverResult]:
+    def cover_results_for_room(self, area_id: str) -> list[CoverResult]:
         results = self.data or {}
         return [
             results[entity_id]
             for entity_id, node in self._covers.items()
-            if node.room.name == room_name and entity_id in results
+            if node.room.area_id == area_id and entity_id in results
         ]
 
-    async def async_set_room_control(self, room_name: str, **changes: Any) -> None:
+    async def async_set_room_control(self, area_id: str, **changes: Any) -> None:
         """Apply a runtime control change for a room and re-resolve."""
 
-        controls = self._room_controls[room_name]
+        controls = self._room_controls[area_id]
         for key, value in changes.items():
             setattr(controls, key, value)
         await self._persist()
