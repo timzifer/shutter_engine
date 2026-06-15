@@ -1,0 +1,12 @@
+{
+  "domain": "shutter_engine",
+  "name": "Shutter Engine",
+  "codeowners": ["@timzifer"],
+  "config_flow": true,
+  "documentation": "https://github.com/timzifer/shutter_engine",
+  "integration_type": "hub",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/timzifer/shutter_engine/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
