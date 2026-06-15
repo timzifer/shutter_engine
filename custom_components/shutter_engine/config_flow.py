@@ -262,7 +262,7 @@ class ShutterEngineOptionsFlow(OptionsFlow):
 
         names = [r.get("name") or f"Room {i + 1}" for i, r in enumerate(self._rooms)]
         schema = _nav_schema(
-            names, add_label="➕ Add room", tail_value=_DONE, tail_label="✅ Save & finish"
+            names, add_label="Add room", tail_value=_DONE, tail_label="Save & finish"
         )
         return self.async_show_form(step_id="rooms", data_schema=schema, errors=errors)
 
@@ -384,7 +384,7 @@ class ShutterEngineOptionsFlow(OptionsFlow):
             return await self.async_step_area_menu()
 
         names = [a.get("name") or f"Area {i + 1}" for i, a in enumerate(self._areas())]
-        schema = _nav_schema(names, add_label="➕ Add area", tail_value=_BACK, tail_label="⬅ Back")
+        schema = _nav_schema(names, add_label="Add area", tail_value=_BACK, tail_label="Back")
         return self.async_show_form(step_id="room_areas", data_schema=schema)
 
     async def async_step_area_add(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -463,7 +463,7 @@ class ShutterEngineOptionsFlow(OptionsFlow):
             return await self.async_step_cover_menu()
 
         names = [c.get("entity_id") or f"Cover {i + 1}" for i, c in enumerate(self._covers())]
-        schema = _nav_schema(names, add_label="➕ Add cover", tail_value=_BACK, tail_label="⬅ Back")
+        schema = _nav_schema(names, add_label="Add cover", tail_value=_BACK, tail_label="Back")
         return self.async_show_form(step_id="area_covers", data_schema=schema)
 
     async def async_step_cover_add(self, user_input: dict[str, Any] | None = None) -> FlowResult:
