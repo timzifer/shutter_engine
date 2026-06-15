@@ -73,9 +73,7 @@ def _bind_room_devices_to_areas(hass: HomeAssistant, entry: ConfigEntry, coordin
         area_id = room.area_id
         if not area_id or ha_area_reg.async_get_area(area_id) is None:
             continue  # no area selected or the area was deleted in HA
-        device = dev_reg.async_get_device(
-            identifiers={(DOMAIN, f"{entry.entry_id}_{area_id}")}
-        )
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, f"{entry.entry_id}_{area_id}")})
         if device is not None and device.area_id != area_id:
             dev_reg.async_update_device(device.id, area_id=area_id)
 
@@ -106,9 +104,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if not area_id:
                 area_id = name_index.get(legacy_name.casefold())
                 if not area_id:
-                    area = ha_area_reg.async_get_or_create(
-                        legacy_name or "Shutter Engine Room"
-                    )
+                    area = ha_area_reg.async_get_or_create(legacy_name or "Shutter Engine Room")
                     area_id = area.id
                     name_index[area.name.casefold()] = area.id
                 room["area_id"] = area_id
@@ -133,9 +129,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _migrate_runtime_store(hass, name_to_area)
     _migrate_registries(hass, entry, name_to_area)
 
-    hass.config_entries.async_update_entry(
-        entry, data=new_data, options=new_options, version=2
-    )
+    hass.config_entries.async_update_entry(entry, data=new_data, options=new_options, version=2)
     return True
 
 

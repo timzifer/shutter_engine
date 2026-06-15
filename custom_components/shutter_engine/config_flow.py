@@ -207,9 +207,7 @@ class ShutterEngineOptionsFlow(OptionsFlow):
         """Return whether another room already maps to ``area_id``."""
 
         return any(
-            room.get("area_id") == area_id
-            for idx, room in enumerate(self._rooms)
-            if idx != exclude
+            room.get("area_id") == area_id for idx, room in enumerate(self._rooms) if idx != exclude
         )
 
     def _room(self) -> dict[str, Any]:
