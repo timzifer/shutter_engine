@@ -56,3 +56,6 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # Brand assets must be submitted to home-assistant/brands separately;
+          # not required for installation via a custom HACS repository.
+          ignore: brands
