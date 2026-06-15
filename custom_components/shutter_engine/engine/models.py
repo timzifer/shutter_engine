@@ -61,11 +61,27 @@ SHADE_TYPE_PRESETS: dict[ShadeType, tuple[ProtectionFlags, CoverCapabilities]] =
     ),
 }
 
+#: Default dynamic slat-tracking participation seeded by the shade type. Only
+#: venetian blinds re-angle their slats; everything else holds the configured
+#: static tilt. Overridable per cover.
+SHADE_TYPE_SLAT_TRACKING: dict[ShadeType, bool] = {
+    ShadeType.VENETIAN: True,
+    ShadeType.ROLLER_SHUTTER: False,
+    ShadeType.STANDARD: False,
+    ShadeType.CUSTOM: False,
+}
+
 
 def presets_for(shade_type: ShadeType) -> tuple[ProtectionFlags, CoverCapabilities]:
     """Return the (protection, capabilities) presets for ``shade_type``."""
 
     return SHADE_TYPE_PRESETS.get(shade_type, SHADE_TYPE_PRESETS[ShadeType.CUSTOM])
+
+
+def slat_tracking_default(shade_type: ShadeType) -> bool:
+    """Return the default slat-tracking participation for ``shade_type``."""
+
+    return SHADE_TYPE_SLAT_TRACKING.get(shade_type, False)
 
 
 # Names of inheritable scalar defaults. ``None`` on a level means "not set
@@ -169,6 +185,9 @@ class CoverConfig(_InheritableDefaults):
     shade_type: ShadeType = ShadeType.STANDARD
     protection: ProtectionFlags | None = None
     capabilities: CoverCapabilities | None = None
+    #: Tri-state dynamic slat tracking: ``None`` falls back to the shade-type
+    #: default (on for venetian blinds, off otherwise).
+    slat_tracking: bool | None = None
     mode_positions: dict[DayMode, ModePosition] = field(default_factory=dict)
 
 
@@ -184,6 +203,7 @@ class ResolvedCoverConfig:
     shade_type: ShadeType
     protection: ProtectionFlags
     capabilities: CoverCapabilities
+    slat_tracking: bool
     mode_positions: dict[DayMode, ModePosition]
     is_escape_route: bool
 
@@ -246,6 +266,11 @@ def resolve_cover_config(
     preset_protection, preset_caps = presets_for(cover.shade_type)
     protection = cover.protection if cover.protection is not None else preset_protection
     capabilities = cover.capabilities if cover.capabilities is not None else preset_caps
+    slat_tracking = (
+        cover.slat_tracking
+        if cover.slat_tracking is not None
+        else slat_tracking_default(cover.shade_type)
+    )
 
     chain = (cover, area, room, hub)
     resolved = {name: _inherit(name, *chain) for name in _INHERITABLE_FIELDS}
@@ -257,6 +282,7 @@ def resolve_cover_config(
         shade_type=cover.shade_type,
         protection=protection,
         capabilities=capabilities,
+        slat_tracking=slat_tracking,
         mode_positions=dict(cover.mode_positions),
         is_escape_route=area.is_escape_route,
         azimuth_from=area.azimuth_from,

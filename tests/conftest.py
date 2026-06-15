@@ -26,6 +26,7 @@ def make_cover_config(**overrides) -> ResolvedCoverConfig:
         "shade_type": ShadeType.VENETIAN,
         "protection": ProtectionFlags(wind=True, frost=True),
         "capabilities": CoverCapabilities(can_position=True, can_tilt=True),
+        "slat_tracking": True,
         "mode_positions": {
             DayMode.SUN_PROTECTION: ModePosition(position=80, tilt=45),
             DayMode.ECO: ModePosition(position=80, tilt=45),

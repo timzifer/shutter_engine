@@ -78,6 +78,24 @@ def test_shade_type_seeds_capabilities_when_not_overridden() -> None:
     assert resolved.capabilities == CoverCapabilities(can_position=True, can_tilt=False)
 
 
+def test_slat_tracking_defaults_on_for_venetian() -> None:
+    cover = CoverConfig(entity_id="cover.x", shade_type=ShadeType.VENETIAN)
+    resolved = resolve_cover_config(cover, AreaConfig(), RoomConfig(), HubConfig())
+    assert resolved.slat_tracking is True
+
+
+def test_slat_tracking_defaults_off_for_roller_shutter() -> None:
+    cover = CoverConfig(entity_id="cover.x", shade_type=ShadeType.ROLLER_SHUTTER)
+    resolved = resolve_cover_config(cover, AreaConfig(), RoomConfig(), HubConfig())
+    assert resolved.slat_tracking is False
+
+
+def test_slat_tracking_explicit_override_wins() -> None:
+    cover = CoverConfig(entity_id="cover.x", shade_type=ShadeType.VENETIAN, slat_tracking=False)
+    resolved = resolve_cover_config(cover, AreaConfig(), RoomConfig(), HubConfig())
+    assert resolved.slat_tracking is False
+
+
 def test_escape_route_propagated_from_area() -> None:
     resolved = resolve_cover_config(
         CoverConfig(entity_id="cover.x"),

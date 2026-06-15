@@ -73,9 +73,22 @@ Copy `custom_components/shutter_engine` into your Home Assistant
 The **config flow** sets up the global (hub) entities: sun, weather, workday,
 wind, frost, fire and burglary sensors.
 
-The room/area/cover tree is edited in the **options flow** as a validated JSON
-document (a guided step-by-step editor is on the roadmap). See
-[`examples/rooms.json`](examples/rooms.json) for a complete example.
+The room/area/cover tree is edited in the **options flow** through a guided,
+step-by-step editor: navigate rooms → areas → covers with menus and edit each
+level in a form. A raw JSON editor is kept as an *advanced* escape hatch for
+bulk edits. See [`examples/rooms.json`](examples/rooms.json) for a complete
+example.
+
+### Dynamic venetian slat tracking
+
+Venetian blinds (Raffstore) can hold their shade position while continuously
+re-angling their slats to track the sun: low sun closes the slats to cut off the
+near-horizontal beam, high sun opens them to admit more diffuse daylight. A
+configurable **dead band** (`sun_tracking_deadband`, degrees) suppresses
+micro-movements so the slats only re-adjust when the change is worth a motor
+move. Tracking is on by default for the `venetian` shade type and overridable
+per cover; the statically configured tilt is used as a fallback when no sun data
+is available.
 
 ### Entities exposed per room
 
@@ -99,8 +112,6 @@ The engine tests run without a Home Assistant installation. CI additionally runs
 
 ## Roadmap
 
-- Guided, step-by-step room/area/cover editor in the options flow.
-- Dynamic venetian slat tracking with a configurable dead band.
 - Phase-2 time-based position emulation for on/off-only actors.
 
 ## License

@@ -28,6 +28,7 @@ from .const import (
     DecisionReason,
 )
 from .models import ModePosition, ResolvedCoverConfig
+from .slat import apply_tilt_deadband
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,11 @@ class ResolverInput:
     eco_temp_reached: bool = False  # room at/above eco set point
     heat_over_max: bool = False  # room above max temperature
 
+    # Dynamic venetian slat tracking ---------------------------------------
+    #: Cut-off slat tilt computed from the sun elevation by the caller, or
+    #: ``None`` when tracking is unavailable (no sun data / disabled).
+    tracked_tilt: int | None = None
+
     # Minimum movement interval --------------------------------------------
     #: Seconds since the last commanded movement; ``None`` if never moved.
     seconds_since_last_move: float | None = None
@@ -102,14 +108,37 @@ def _hold(inp: ResolverInput, reason: DecisionReason, *, blocked: bool = False) 
     )
 
 
-def _mode_target(inp: ResolverInput, mode: DayMode, reason: DecisionReason) -> Decision:
-    """Build a decision from the configured position for ``mode``."""
+def _mode_target(
+    inp: ResolverInput,
+    mode: DayMode,
+    reason: DecisionReason,
+    *,
+    track: bool = False,
+) -> Decision:
+    """Build a decision from the configured position for ``mode``.
+
+    For venetian blinds with dynamic slat tracking enabled, the statically
+    configured tilt is replaced by the sun-tracking tilt (subject to the
+    configured dead band) while the shade position is kept. Tracking is only
+    requested for modes that block the direct beam while admitting diffuse
+    light (sun protection, eco); heat protection keeps its fully-closed tilt.
+    """
 
     mp: ModePosition | None = inp.config.mode_positions.get(mode)
-    if mp is None:
-        # No explicit shade position configured -> fully close.
-        return Decision(position=POSITION_CLOSED, tilt=None, reason=reason)
-    return Decision(position=mp.position, tilt=mp.tilt, reason=reason)
+    position = POSITION_CLOSED if mp is None else mp.position
+    tilt = None if mp is None else mp.tilt
+    if track:
+        tilt = _tracked_tilt(inp, fallback=tilt)
+    return Decision(position=position, tilt=tilt, reason=reason)
+
+
+def _tracked_tilt(inp: ResolverInput, *, fallback: int | None) -> int | None:
+    """Return the dynamic tracking tilt when applicable, else ``fallback``."""
+
+    cfg = inp.config
+    if not (cfg.slat_tracking and cfg.capabilities.can_tilt) or inp.tracked_tilt is None:
+        return fallback
+    return apply_tilt_deadband(inp.tracked_tilt, inp.current_tilt, cfg.sun_tracking_deadband)
 
 
 def _open(reason: DecisionReason) -> Decision:
@@ -171,13 +200,15 @@ def _day_mode_driver(inp: ResolverInput) -> Decision | None:
 
     if inp.day_mode is DayMode.SUN_PROTECTION:
         if shade_conditions:
-            return _mode_target(inp, DayMode.SUN_PROTECTION, DecisionReason.SUN_PROTECTION)
+            return _mode_target(
+                inp, DayMode.SUN_PROTECTION, DecisionReason.SUN_PROTECTION, track=True
+            )
         return _open(DecisionReason.SUN_PROTECTION)
 
     if inp.day_mode is DayMode.ECO:
         # Stay open for passive solar heating until the set point is reached.
         if shade_conditions and inp.eco_temp_reached:
-            return _mode_target(inp, DayMode.ECO, DecisionReason.ECO)
+            return _mode_target(inp, DayMode.ECO, DecisionReason.ECO, track=True)
         return _open(DecisionReason.ECO)
 
     if inp.day_mode is DayMode.HEAT_PROTECTION:

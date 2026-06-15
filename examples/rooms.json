@@ -33,6 +33,8 @@
           {
             "entity_id": "cover.living_room_left",
             "shade_type": "venetian",
+            "slat_tracking": true,
+            "sun_tracking_deadband": 5,
             "mode_positions": {
               "sun_protection": { "position": 80, "tilt": 45 },
               "eco": { "position": 80, "tilt": 45 },
