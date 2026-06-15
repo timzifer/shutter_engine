@@ -95,8 +95,11 @@ class ShutterEngineConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        # Single instance: the hub aggregates everything.
-        await self.async_set_unique_id(DOMAIN)
+        # Single instance: the hub aggregates everything. ``raise_on_progress``
+        # is disabled so that a setup attempt the user abandoned (e.g. by
+        # closing the dialog) does not leave a lingering in-progress flow that
+        # would abort every later attempt with "already_in_progress".
+        await self.async_set_unique_id(DOMAIN, raise_on_progress=False)
         self._abort_if_unique_id_configured()
 
         if user_input is not None:
