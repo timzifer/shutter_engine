@@ -1,0 +1,60 @@
+{
+  "_comment": "Illustrative stored data shape for each subentry type. These are NOT imported as a file; add rulesets, controllers and windows from the integration page. The keys shown here are exactly what each subentry stores in `config_entry.subentries[*].data`. `controller_id` / `ruleset_id` reference the subentry id of the linked controller / ruleset.",
+
+  "ruleset": {
+    "name": "South facade",
+    "brightness_close": 40000,
+    "brightness_open": 20000,
+    "temp_hysteresis": 0.5,
+    "safe_position": 0,
+    "ventilation_position": 10,
+    "sun_tracking_deadband": 5,
+    "elevation_min": 5,
+    "elevation_max": 60,
+    "mode_positions": {
+      "sun_protection": { "position": 80, "tilt": 45 },
+      "eco": { "position": 70, "tilt": 35 },
+      "heat_protection": { "position": 0, "tilt": 0 }
+    },
+    "night": {
+      "enabled": true,
+      "window_start": "20:00",
+      "window_end": "23:30",
+      "rel_offset": 0
+    },
+    "morning": {
+      "enabled": true,
+      "window_start": "06:30",
+      "window_end": "09:00",
+      "rel_offset": -15,
+      "weekend_coupling": true
+    }
+  },
+
+  "controller": {
+    "area_id": "living_room",
+    "ruleset_id": "<ruleset subentry id>",
+    "day_mode": "sun_protection",
+    "heating_entity": "climate.living_room",
+    "target_temp": 21.0,
+    "room_temp_entity": "sensor.living_room_temperature",
+    "max_temp": 26.0
+  },
+
+  "window": {
+    "entity_id": "cover.living_room_left",
+    "controller_id": "<controller subentry id>",
+    "shade_type": "venetian",
+    "slat_tracking": true,
+    "azimuth_from": 120,
+    "azimuth_to": 240,
+    "elevation_min": 5,
+    "elevation_max": 60,
+    "brightness_entity": "sensor.living_room_lux",
+    "contact_entity": "binary_sensor.living_room_door",
+    "is_escape_route": true,
+    "mode_positions": {
+      "sun_protection": { "position": 70, "tilt": 40 }
+    }
+  }
+}

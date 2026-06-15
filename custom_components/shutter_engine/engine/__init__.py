@@ -16,14 +16,15 @@ from .const import (
 )
 from .hysteresis import Hysteresis, TemperatureHysteresis
 from .models import (
-    AreaConfig,
+    ControllerConfig,
     CoverCapabilities,
-    CoverConfig,
     HubConfig,
     ModePosition,
     ProtectionFlags,
     ResolvedCoverConfig,
-    RoomConfig,
+    RulesetConfig,
+    TimeFunction,
+    WindowConfig,
 )
 from .resolver import Decision, ResolverInput, resolve
 from .slat import apply_tilt_deadband, slat_tilt_for_elevation
@@ -36,10 +37,9 @@ from .sun import (
 from .timewindow import TimeWindowResult, resolve_time_window
 
 __all__ = [
-    "AreaConfig",
     "ContactState",
+    "ControllerConfig",
     "CoverCapabilities",
-    "CoverConfig",
     "DayMode",
     "Decision",
     "DecisionReason",
@@ -55,10 +55,12 @@ __all__ = [
     "ProtectionFlags",
     "ResolvedCoverConfig",
     "ResolverInput",
-    "RoomConfig",
+    "RulesetConfig",
     "ShadeType",
     "TemperatureHysteresis",
+    "TimeFunction",
     "TimeWindowResult",
+    "WindowConfig",
     "resolve",
     "resolve_time_window",
 ]

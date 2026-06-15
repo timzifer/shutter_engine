@@ -1,4 +1,4 @@
-"""Switch entities for per-room control (lock, night, morning, holiday)."""
+"""Switch entities for per-controller control (lock, night, morning, holiday)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchEntity
 
 from .const import DOMAIN
-from .coordinator import RoomControls
-from .entity import ShutterEngineRoomEntity, resolve_room_display
+from .coordinator import ControllerControls
+from .entity import ShutterEngineControllerEntity, resolve_area_display
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -21,39 +21,39 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, kw_only=True)
-class RoomSwitchDescription:
-    """Describes one room control switch."""
+class ControllerSwitchDescription:
+    """Describes one controller control switch."""
 
     key: str
     translation_key: str
     control_attr: str
     icon: str
-    getter: Callable[[RoomControls], bool]
+    getter: Callable[[ControllerControls], bool]
 
 
-SWITCHES: tuple[RoomSwitchDescription, ...] = (
-    RoomSwitchDescription(
+SWITCHES: tuple[ControllerSwitchDescription, ...] = (
+    ControllerSwitchDescription(
         key="lock",
         translation_key="lock",
         control_attr="locked",
         icon="mdi:lock",
         getter=lambda c: c.locked,
     ),
-    RoomSwitchDescription(
+    ControllerSwitchDescription(
         key="night",
         translation_key="night",
         control_attr="night_enabled",
         icon="mdi:weather-night",
         getter=lambda c: c.night_enabled,
     ),
-    RoomSwitchDescription(
+    ControllerSwitchDescription(
         key="morning",
         translation_key="morning",
         control_attr="morning_enabled",
         icon="mdi:weather-sunset-up",
         getter=lambda c: c.morning_enabled,
     ),
-    RoomSwitchDescription(
+    ControllerSwitchDescription(
         key="holiday",
         translation_key="holiday",
         control_attr="holiday",
@@ -68,32 +68,33 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the per-room control switches."""
+    """Set up the per-controller control switches."""
 
     coordinator: ShutterEngineCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
-        RoomControlSwitch(
-            coordinator,
-            room.area_id,
-            resolve_room_display(hass, room.area_id, room.name or room.area_id),
-            description,
+    for subentry_id, subentry in entry.subentries.items():
+        if subentry.subentry_type != "controller":
+            continue
+        display = resolve_area_display(hass, subentry.data.get("area_id", ""), subentry.title)
+        async_add_entities(
+            [
+                ControllerControlSwitch(coordinator, subentry_id, display, description)
+                for description in SWITCHES
+            ],
+            config_subentry_id=subentry_id,
         )
-        for room in coordinator.rooms
-        for description in SWITCHES
-    )
 
 
-class RoomControlSwitch(ShutterEngineRoomEntity, SwitchEntity):
-    """A single room control switch."""
+class ControllerControlSwitch(ShutterEngineControllerEntity, SwitchEntity):
+    """A single controller control switch."""
 
     def __init__(
         self,
         coordinator: ShutterEngineCoordinator,
-        area_id: str,
+        controller_id: str,
         display_name: str,
-        description: RoomSwitchDescription,
+        description: ControllerSwitchDescription,
     ) -> None:
-        super().__init__(coordinator, area_id, display_name)
+        super().__init__(coordinator, controller_id, display_name)
         self.entity_description = description  # type: ignore[assignment]
         self._description = description
         self._attr_translation_key = description.translation_key
@@ -102,14 +103,14 @@ class RoomControlSwitch(ShutterEngineRoomEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return self._description.getter(self.coordinator.room_controls(self._area_id))
+        return self._description.getter(self.coordinator.controller_controls(self._controller_id))
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.coordinator.async_set_room_control(
-            self._area_id, **{self._description.control_attr: True}
+        await self.coordinator.async_set_controller_control(
+            self._controller_id, **{self._description.control_attr: True}
         )
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.coordinator.async_set_room_control(
-            self._area_id, **{self._description.control_attr: False}
+        await self.coordinator.async_set_controller_control(
+            self._controller_id, **{self._description.control_attr: False}
         )

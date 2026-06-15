@@ -1,26 +1,30 @@
-"""Parsing of the stored config-entry dictionary into engine dataclasses.
+"""Assemble the stored subentry dictionaries into engine dataclasses.
 
 This module is pure Python (no Home Assistant import) so the config schema can
-be unit-tested in isolation. The config flow produces the dictionary; the
-coordinator consumes the parsed dataclasses.
+be unit-tested in isolation. The config flow produces the subentry
+dictionaries; the coordinator reads ``config_entry.subentries`` and feeds the
+per-type dictionaries into :func:`build_engine_state`.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from .engine import (
-    AreaConfig,
+    ControllerConfig,
     CoverCapabilities,
-    CoverConfig,
     DayMode,
     HubConfig,
     ModePosition,
     ProtectionFlags,
-    RoomConfig,
+    ResolvedCoverConfig,
+    RulesetConfig,
     ShadeType,
+    TimeFunction,
+    WindowConfig,
 )
-from .engine.models import TimeFunction
+from .engine.models import resolve_window
 
 # Inheritable scalar keys shared by every level.
 _INHERITABLE_KEYS = (
@@ -67,64 +71,6 @@ def _parse_mode_positions(data: dict[str, Any] | None) -> dict[DayMode, ModePosi
     return result
 
 
-def _parse_cover(data: dict[str, Any]) -> CoverConfig:
-    protection = None
-    if "protection" in data:
-        protection = ProtectionFlags(
-            wind=bool(data["protection"].get("wind", False)),
-            frost=bool(data["protection"].get("frost", False)),
-        )
-    capabilities = None
-    if "capabilities" in data:
-        capabilities = CoverCapabilities(
-            can_position=bool(data["capabilities"].get("can_position", True)),
-            can_tilt=bool(data["capabilities"].get("can_tilt", False)),
-        )
-    slat_tracking = data.get("slat_tracking")
-    if slat_tracking is not None:
-        slat_tracking = bool(slat_tracking)
-    return CoverConfig(
-        entity_id=data["entity_id"],
-        shade_type=ShadeType(data.get("shade_type", ShadeType.STANDARD.value)),
-        protection=protection,
-        capabilities=capabilities,
-        slat_tracking=slat_tracking,
-        mode_positions=_parse_mode_positions(data.get("mode_positions")),
-        **_inheritable(data),
-    )
-
-
-def _parse_area(data: dict[str, Any]) -> AreaConfig:
-    return AreaConfig(
-        name=data.get("name", ""),
-        azimuth_from=data.get("azimuth_from"),
-        azimuth_to=data.get("azimuth_to"),
-        brightness_entity=data.get("brightness_entity"),
-        contact_entity=data.get("contact_entity"),
-        is_escape_route=bool(data.get("is_escape_route", True)),
-        covers=[_parse_cover(c) for c in data.get("covers", [])],
-        **_inheritable(data),
-    )
-
-
-def _parse_room(data: dict[str, Any]) -> RoomConfig:
-    return RoomConfig(
-        area_id=data.get("area_id", ""),
-        name=data.get("name", ""),
-        day_mode=DayMode(data.get("day_mode", DayMode.OFF.value)),
-        locked=bool(data.get("locked", False)),
-        holiday=bool(data.get("holiday", False)),
-        heating_entity=data.get("heating_entity"),
-        target_temp=data.get("target_temp"),
-        room_temp_entity=data.get("room_temp_entity"),
-        max_temp=data.get("max_temp"),
-        night=_parse_time_function(data.get("night")),
-        morning=_parse_time_function(data.get("morning")),
-        areas=[_parse_area(a) for a in data.get("areas", [])],
-        **_inheritable(data),
-    )
-
-
 def parse_hub(data: dict[str, Any]) -> HubConfig:
     """Parse the hub section of the config dictionary."""
 
@@ -140,9 +86,155 @@ def parse_hub(data: dict[str, Any]) -> HubConfig:
     )
 
 
-def parse_config(data: dict[str, Any]) -> tuple[HubConfig, list[RoomConfig]]:
-    """Parse the full config dictionary into ``(hub, rooms)``."""
+def parse_ruleset(data: dict[str, Any]) -> RulesetConfig:
+    """Parse a ruleset subentry dictionary."""
 
-    hub = parse_hub(data.get("hub", {}))
-    rooms = [_parse_room(r) for r in data.get("rooms", [])]
-    return hub, rooms
+    return RulesetConfig(
+        name=data.get("name", ""),
+        mode_positions=_parse_mode_positions(data.get("mode_positions")),
+        night=_parse_time_function(data.get("night")),
+        morning=_parse_time_function(data.get("morning")),
+        **_inheritable(data),
+    )
+
+
+def parse_controller(data: dict[str, Any]) -> ControllerConfig:
+    """Parse a controller subentry dictionary."""
+
+    return ControllerConfig(
+        area_id=data.get("area_id", ""),
+        name=data.get("name", ""),
+        day_mode=DayMode(data.get("day_mode", DayMode.OFF.value)),
+        locked=bool(data.get("locked", False)),
+        holiday=bool(data.get("holiday", False)),
+        heating_entity=data.get("heating_entity"),
+        target_temp=data.get("target_temp"),
+        room_temp_entity=data.get("room_temp_entity"),
+        max_temp=data.get("max_temp"),
+        ruleset_id=data.get("ruleset_id", ""),
+        **_inheritable(data),
+    )
+
+
+def parse_window(data: dict[str, Any]) -> WindowConfig:
+    """Parse a window subentry dictionary."""
+
+    protection = None
+    if "protection" in data:
+        protection = ProtectionFlags(
+            wind=bool(data["protection"].get("wind", False)),
+            frost=bool(data["protection"].get("frost", False)),
+        )
+    capabilities = None
+    if "capabilities" in data:
+        capabilities = CoverCapabilities(
+            can_position=bool(data["capabilities"].get("can_position", True)),
+            can_tilt=bool(data["capabilities"].get("can_tilt", False)),
+        )
+    slat_tracking = data.get("slat_tracking")
+    if slat_tracking is not None:
+        slat_tracking = bool(slat_tracking)
+    return WindowConfig(
+        entity_id=data.get("entity_id", ""),
+        controller_id=data.get("controller_id", ""),
+        shade_type=ShadeType(data.get("shade_type", ShadeType.STANDARD.value)),
+        protection=protection,
+        capabilities=capabilities,
+        slat_tracking=slat_tracking,
+        mode_positions=_parse_mode_positions(data.get("mode_positions")),
+        azimuth_from=data.get("azimuth_from"),
+        azimuth_to=data.get("azimuth_to"),
+        brightness_entity=data.get("brightness_entity"),
+        contact_entity=data.get("contact_entity"),
+        is_escape_route=bool(data.get("is_escape_route", True)),
+        **_inheritable(data),
+    )
+
+
+@dataclass
+class ControllerNode:
+    """A parsed controller together with its resolved time-window functions."""
+
+    config: ControllerConfig
+    night: TimeFunction
+    morning: TimeFunction
+
+
+@dataclass
+class WindowNode:
+    """A resolved window cover ready for the coordinator.
+
+    ``subentry_id`` keys the per-window device/entities; ``config.entity_id`` is
+    the actual cover actor that gets commanded.
+    """
+
+    subentry_id: str
+    config: ResolvedCoverConfig
+    controller_id: str
+    controller: ControllerConfig
+    night: TimeFunction
+    morning: TimeFunction
+    brightness_entity: str | None
+    contact_entity: str | None
+
+
+@dataclass
+class EngineState:
+    """Fully assembled configuration consumed by the coordinator."""
+
+    hub: HubConfig
+    controllers: dict[str, ControllerNode] = field(default_factory=dict)
+    windows: list[WindowNode] = field(default_factory=list)
+
+
+def build_engine_state(
+    hub_data: dict[str, Any],
+    rulesets: dict[str, dict[str, Any]],
+    controllers: dict[str, dict[str, Any]],
+    windows: dict[str, dict[str, Any]],
+) -> EngineState:
+    """Assemble hub/ruleset/controller/window subentry data into an engine state.
+
+    ``rulesets``/``controllers``/``windows`` map ``subentry_id -> stored data``.
+    A controller referencing a missing ruleset falls back to hub defaults; a
+    window referencing a missing controller is skipped.
+    """
+
+    hub = parse_hub(hub_data)
+    parsed_rulesets = {sid: parse_ruleset(data) for sid, data in rulesets.items()}
+    parsed_controllers = {sid: parse_controller(data) for sid, data in controllers.items()}
+
+    def ruleset_for(controller: ControllerConfig) -> RulesetConfig:
+        return parsed_rulesets.get(controller.ruleset_id, RulesetConfig())
+
+    controller_nodes: dict[str, ControllerNode] = {}
+    for cid, controller in parsed_controllers.items():
+        ruleset = ruleset_for(controller)
+        controller_nodes[cid] = ControllerNode(
+            config=controller,
+            night=ruleset.night,
+            morning=ruleset.morning,
+        )
+
+    window_nodes: list[WindowNode] = []
+    for sid, data in windows.items():
+        window = parse_window(data)
+        controller = parsed_controllers.get(window.controller_id)
+        if controller is None:
+            continue  # dangling controller reference -> skip this window
+        ruleset = ruleset_for(controller)
+        resolved = resolve_window(window, controller, ruleset, hub)
+        window_nodes.append(
+            WindowNode(
+                subentry_id=sid,
+                config=resolved,
+                controller_id=window.controller_id,
+                controller=controller,
+                night=ruleset.night,
+                morning=ruleset.morning,
+                brightness_entity=window.brightness_entity,
+                contact_entity=window.contact_entity,
+            )
+        )
+
+    return EngineState(hub=hub, controllers=controller_nodes, windows=window_nodes)

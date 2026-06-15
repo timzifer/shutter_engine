@@ -12,7 +12,11 @@ STORAGE_VERSION: Final = 1
 
 # Config entry data / options keys ------------------------------------------
 CONF_HUB: Final = "hub"
-CONF_ROOMS: Final = "rooms"
+
+# Subentry types -------------------------------------------------------------
+SUBENTRY_RULESET: Final = "ruleset"
+SUBENTRY_CONTROLLER: Final = "controller"
+SUBENTRY_WINDOW: Final = "window"
 
 CONF_SUN_ENTITY: Final = "sun_entity"
 CONF_WEATHER_ENTITY: Final = "weather_entity"
