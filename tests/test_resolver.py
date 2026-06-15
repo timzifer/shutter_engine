@@ -362,3 +362,99 @@ def test_tilt_dropped_when_unsupported() -> None:
     decision = resolve(inp)
     assert decision.position == 80
     assert decision.tilt is None
+
+
+# ---------------------------------------------------------------------------
+# Dynamic venetian slat tracking
+# ---------------------------------------------------------------------------
+
+
+def test_slat_tracking_overrides_static_tilt() -> None:
+    inp = ResolverInput(
+        config=make_cover_config(),  # venetian, slat_tracking on
+        day_mode=DayMode.SUN_PROTECTION,
+        sun_in_funnel=True,
+        bright_enough=True,
+        tracked_tilt=70,
+        current_tilt=10,
+    )
+    decision = resolve(inp)
+    assert decision.position == 80  # static shade position kept
+    assert decision.tilt == 70  # dynamic tilt replaces the configured 45
+
+
+def test_slat_tracking_honours_deadband() -> None:
+    cfg = make_cover_config(sun_tracking_deadband=5.0)
+    inp = ResolverInput(
+        config=cfg,
+        day_mode=DayMode.SUN_PROTECTION,
+        sun_in_funnel=True,
+        bright_enough=True,
+        tracked_tilt=47,
+        current_tilt=45,  # change of 2 < dead band -> held
+    )
+    assert resolve(inp).tilt == 45
+
+
+def test_slat_tracking_disabled_keeps_static_tilt() -> None:
+    cfg = make_cover_config(slat_tracking=False)
+    inp = ResolverInput(
+        config=cfg,
+        day_mode=DayMode.SUN_PROTECTION,
+        sun_in_funnel=True,
+        bright_enough=True,
+        tracked_tilt=70,
+        current_tilt=10,
+    )
+    assert resolve(inp).tilt == 45  # configured static tilt
+
+
+def test_slat_tracking_without_tracked_value_keeps_static_tilt() -> None:
+    inp = ResolverInput(
+        config=make_cover_config(),
+        day_mode=DayMode.SUN_PROTECTION,
+        sun_in_funnel=True,
+        bright_enough=True,
+        tracked_tilt=None,  # no sun data
+    )
+    assert resolve(inp).tilt == 45
+
+
+def test_slat_tracking_not_applied_to_heat_protection() -> None:
+    # Heat protection wants the slats fully closed; tracking must not open them.
+    inp = ResolverInput(
+        config=make_cover_config(),
+        day_mode=DayMode.HEAT_PROTECTION,
+        heat_over_max=True,
+        tracked_tilt=70,
+        current_tilt=0,
+    )
+    decision = resolve(inp)
+    assert decision.reason is DecisionReason.HEAT_PROTECTION
+    assert decision.tilt == 0  # configured heat-protection tilt, not the tracked 70
+
+
+def test_slat_tracking_applied_to_eco() -> None:
+    inp = ResolverInput(
+        config=make_cover_config(),
+        day_mode=DayMode.ECO,
+        sun_in_funnel=True,
+        bright_enough=True,
+        eco_temp_reached=True,
+        tracked_tilt=70,
+        current_tilt=10,
+    )
+    assert resolve(inp).tilt == 70
+
+
+def test_slat_tracking_dropped_when_tilt_unsupported() -> None:
+    cfg = make_cover_config(capabilities=CoverCapabilities(can_position=True, can_tilt=False))
+    inp = ResolverInput(
+        config=cfg,
+        day_mode=DayMode.SUN_PROTECTION,
+        sun_in_funnel=True,
+        bright_enough=True,
+        tracked_tilt=70,
+        current_tilt=10,
+    )
+    assert resolve(inp).tilt is None

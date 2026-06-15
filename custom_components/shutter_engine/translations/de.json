@@ -25,7 +25,8 @@
         "title": "Rollladensteuerung",
         "menu_options": {
           "hub": "Globale Entitäten",
-          "rooms": "Räume (JSON)"
+          "rooms": "Räume bearbeiten (geführt)",
+          "rooms_json": "Räume bearbeiten (erweitert, JSON)"
         }
       },
       "hub": {
@@ -40,16 +41,146 @@
           "burglary_entity": "Einbruch-/Sicherheits-Sensor"
         }
       },
-      "rooms": {
-        "title": "Räume",
-        "description": "Bearbeite die Raum-/Flächen-/Cover-Struktur als JSON.",
+      "rooms_json": {
+        "title": "Räume (erweitert)",
+        "description": "Bearbeite die Raum-/Flächen-/Cover-Struktur direkt als JSON.",
         "data": {
           "rooms_json": "Räume (JSON)"
+        }
+      },
+      "rooms": {
+        "title": "Räume",
+        "description": "Wähle einen Raum zum Bearbeiten, füge einen Raum hinzu oder speichere und beende.",
+        "data": {
+          "selection": "Raum"
+        }
+      },
+      "room_add": {
+        "title": "Raum hinzufügen",
+        "data": {
+          "name": "Raumname"
+        }
+      },
+      "room_menu": {
+        "title": "Raum",
+        "menu_options": {
+          "room_edit": "Raum-Einstellungen",
+          "room_time": "Nacht-/Morgen-Funktionen",
+          "room_areas": "Flächen",
+          "room_delete": "Raum löschen",
+          "rooms": "Zurück zu den Räumen"
+        }
+      },
+      "room_edit": {
+        "title": "Raum-Einstellungen",
+        "data": {
+          "name": "Raumname",
+          "day_mode": "Tagesmodus",
+          "heating_entity": "Heizung (Climate)-Entität",
+          "target_temp": "Öko-Sollwert (°C)",
+          "room_temp_entity": "Raumtemperatur-Sensor",
+          "max_temp": "Wärmeschutz-Schwelle (°C)"
+        }
+      },
+      "room_time": {
+        "title": "Nacht-/Morgen-Funktionen",
+        "data": {
+          "night_enabled": "Nachtfunktion aktivieren",
+          "night_start": "Nachtfenster Start (HH:MM)",
+          "night_end": "Nachtfenster Ende (HH:MM)",
+          "night_offset": "Nacht-Versatz zum Sonnenuntergang (Minuten)",
+          "morning_enabled": "Morgenfunktion aktivieren",
+          "morning_start": "Morgenfenster Start (HH:MM)",
+          "morning_end": "Morgenfenster Ende (HH:MM)",
+          "morning_offset": "Morgen-Versatz zum Sonnenaufgang (Minuten)",
+          "morning_weekend_coupling": "Wochenend-Fenster an arbeitsfreien Tagen"
+        }
+      },
+      "room_areas": {
+        "title": "Flächen",
+        "description": "Wähle eine Fläche zum Bearbeiten, füge eine Fläche hinzu oder gehe zurück.",
+        "data": {
+          "selection": "Fläche"
+        }
+      },
+      "area_add": {
+        "title": "Fläche hinzufügen",
+        "data": {
+          "name": "Flächenname"
+        }
+      },
+      "area_menu": {
+        "title": "Fläche",
+        "menu_options": {
+          "area_edit": "Flächen-Einstellungen",
+          "area_covers": "Behänge",
+          "area_delete": "Fläche löschen",
+          "room_areas": "Zurück zu den Flächen"
+        }
+      },
+      "area_edit": {
+        "title": "Flächen-Einstellungen",
+        "data": {
+          "name": "Flächenname",
+          "azimuth_from": "Azimut von (°)",
+          "azimuth_to": "Azimut bis (°)",
+          "elevation_min": "Elevation min (°)",
+          "elevation_max": "Elevation max (°)",
+          "brightness_entity": "Helligkeits-(Lux)-Sensor",
+          "contact_entity": "Fensterkontakt-Sensor",
+          "is_escape_route": "Fluchtweg (Feuer öffnet ihn)"
+        }
+      },
+      "area_covers": {
+        "title": "Behänge",
+        "description": "Wähle einen Behang zum Bearbeiten, füge einen Behang hinzu oder gehe zurück.",
+        "data": {
+          "selection": "Behang"
+        }
+      },
+      "cover_add": {
+        "title": "Behang hinzufügen",
+        "data": {
+          "entity_id": "Cover-Entität",
+          "shade_type": "Behang-Typ"
+        }
+      },
+      "cover_menu": {
+        "title": "Behang",
+        "menu_options": {
+          "cover_edit": "Behang-Einstellungen",
+          "cover_modes": "Modus-Positionen",
+          "cover_delete": "Behang löschen",
+          "area_covers": "Zurück zu den Behängen"
+        }
+      },
+      "cover_edit": {
+        "title": "Behang-Einstellungen",
+        "data": {
+          "entity_id": "Cover-Entität",
+          "shade_type": "Behang-Typ",
+          "slat_tracking": "Dynamische Lamellen-Nachführung",
+          "sun_tracking_deadband": "Lamellen-Totband (°)",
+          "safe_position": "Sturm-Sicherheitsposition (%)",
+          "ventilation_position": "Lüftungsposition (%)",
+          "min_movement_interval": "Mindest-Bewegungsintervall (s)"
+        }
+      },
+      "cover_modes": {
+        "title": "Modus-Positionen",
+        "description": "Zielposition und optionale Lamellen-Neigung je Tagesmodus. Lasse die Position leer, um im Modus vollständig zu schließen.",
+        "data": {
+          "sun_protection_position": "Sonnenschutz — Position (%)",
+          "sun_protection_tilt": "Sonnenschutz — Neigung (%)",
+          "eco_position": "Öko — Position (%)",
+          "eco_tilt": "Öko — Neigung (%)",
+          "heat_protection_position": "Wärmeschutz — Position (%)",
+          "heat_protection_tilt": "Wärmeschutz — Neigung (%)"
         }
       }
     },
     "error": {
-      "invalid_rooms": "Die Räume-JSON ist ungültig. Bitte Struktur prüfen."
+      "invalid_rooms": "Die Räume-Konfiguration ist ungültig. Bitte Struktur prüfen."
     }
   },
   "entity": {

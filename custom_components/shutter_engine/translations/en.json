@@ -25,7 +25,8 @@
         "title": "Shutter Engine",
         "menu_options": {
           "hub": "Global entities",
-          "rooms": "Rooms (JSON)"
+          "rooms": "Edit rooms (guided)",
+          "rooms_json": "Edit rooms (advanced JSON)"
         }
       },
       "hub": {
@@ -40,16 +41,146 @@
           "burglary_entity": "Burglary/security sensor"
         }
       },
-      "rooms": {
-        "title": "Rooms",
-        "description": "Edit the room/area/cover tree as JSON.",
+      "rooms_json": {
+        "title": "Rooms (advanced)",
+        "description": "Edit the room/area/cover tree directly as JSON.",
         "data": {
           "rooms_json": "Rooms (JSON)"
+        }
+      },
+      "rooms": {
+        "title": "Rooms",
+        "description": "Pick a room to edit, add a new room, or save and finish.",
+        "data": {
+          "selection": "Room"
+        }
+      },
+      "room_add": {
+        "title": "Add room",
+        "data": {
+          "name": "Room name"
+        }
+      },
+      "room_menu": {
+        "title": "Room",
+        "menu_options": {
+          "room_edit": "Room settings",
+          "room_time": "Night / morning functions",
+          "room_areas": "Areas",
+          "room_delete": "Delete room",
+          "rooms": "Back to rooms"
+        }
+      },
+      "room_edit": {
+        "title": "Room settings",
+        "data": {
+          "name": "Room name",
+          "day_mode": "Day mode",
+          "heating_entity": "Heating (climate) entity",
+          "target_temp": "Eco set point (°C)",
+          "room_temp_entity": "Room temperature sensor",
+          "max_temp": "Heat-protection threshold (°C)"
+        }
+      },
+      "room_time": {
+        "title": "Night / morning functions",
+        "data": {
+          "night_enabled": "Enable night function",
+          "night_start": "Night window start (HH:MM)",
+          "night_end": "Night window end (HH:MM)",
+          "night_offset": "Night offset to sunset (minutes)",
+          "morning_enabled": "Enable morning function",
+          "morning_start": "Morning window start (HH:MM)",
+          "morning_end": "Morning window end (HH:MM)",
+          "morning_offset": "Morning offset to sunrise (minutes)",
+          "morning_weekend_coupling": "Use weekend window on non-workdays"
+        }
+      },
+      "room_areas": {
+        "title": "Areas",
+        "description": "Pick an area to edit, add a new area, or go back.",
+        "data": {
+          "selection": "Area"
+        }
+      },
+      "area_add": {
+        "title": "Add area",
+        "data": {
+          "name": "Area name"
+        }
+      },
+      "area_menu": {
+        "title": "Area",
+        "menu_options": {
+          "area_edit": "Area settings",
+          "area_covers": "Covers",
+          "area_delete": "Delete area",
+          "room_areas": "Back to areas"
+        }
+      },
+      "area_edit": {
+        "title": "Area settings",
+        "data": {
+          "name": "Area name",
+          "azimuth_from": "Azimuth from (°)",
+          "azimuth_to": "Azimuth to (°)",
+          "elevation_min": "Elevation min (°)",
+          "elevation_max": "Elevation max (°)",
+          "brightness_entity": "Brightness (lux) sensor",
+          "contact_entity": "Window contact sensor",
+          "is_escape_route": "Escape route (fire opens it)"
+        }
+      },
+      "area_covers": {
+        "title": "Covers",
+        "description": "Pick a cover to edit, add a new cover, or go back.",
+        "data": {
+          "selection": "Cover"
+        }
+      },
+      "cover_add": {
+        "title": "Add cover",
+        "data": {
+          "entity_id": "Cover entity",
+          "shade_type": "Shade type"
+        }
+      },
+      "cover_menu": {
+        "title": "Cover",
+        "menu_options": {
+          "cover_edit": "Cover settings",
+          "cover_modes": "Mode positions",
+          "cover_delete": "Delete cover",
+          "area_covers": "Back to covers"
+        }
+      },
+      "cover_edit": {
+        "title": "Cover settings",
+        "data": {
+          "entity_id": "Cover entity",
+          "shade_type": "Shade type",
+          "slat_tracking": "Dynamic slat tracking",
+          "sun_tracking_deadband": "Slat dead band (°)",
+          "safe_position": "Storm safe position (%)",
+          "ventilation_position": "Ventilation position (%)",
+          "min_movement_interval": "Minimum movement interval (s)"
+        }
+      },
+      "cover_modes": {
+        "title": "Mode positions",
+        "description": "Target position and optional slat tilt per day mode. Leave a position empty to fully close in that mode.",
+        "data": {
+          "sun_protection_position": "Sun protection — position (%)",
+          "sun_protection_tilt": "Sun protection — tilt (%)",
+          "eco_position": "Eco — position (%)",
+          "eco_tilt": "Eco — tilt (%)",
+          "heat_protection_position": "Heat protection — position (%)",
+          "heat_protection_tilt": "Heat protection — tilt (%)"
         }
       }
     },
     "error": {
-      "invalid_rooms": "The rooms JSON is invalid. Please check the structure."
+      "invalid_rooms": "The rooms configuration is invalid. Please check the structure."
     }
   },
   "entity": {

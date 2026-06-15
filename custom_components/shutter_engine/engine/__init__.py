@@ -26,6 +26,7 @@ from .models import (
     RoomConfig,
 )
 from .resolver import Decision, ResolverInput, resolve
+from .slat import apply_tilt_deadband, slat_tilt_for_elevation
 from .sun import (
     estimate_brightness,
     in_azimuth_funnel,
@@ -44,11 +45,13 @@ __all__ = [
     "DecisionReason",
     "HubConfig",
     "Hysteresis",
+    "apply_tilt_deadband",
     "estimate_brightness",
     "in_azimuth_funnel",
     "in_elevation_band",
     "in_sun_funnel",
     "ModePosition",
+    "slat_tilt_for_elevation",
     "ProtectionFlags",
     "ResolvedCoverConfig",
     "ResolverInput",

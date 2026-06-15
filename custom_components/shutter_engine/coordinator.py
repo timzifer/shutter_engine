@@ -47,6 +47,7 @@ from .engine import (
     in_sun_funnel,
     resolve,
     resolve_time_window,
+    slat_tilt_for_elevation,
 )
 from .engine.models import ResolvedCoverConfig, resolve_cover_config
 
@@ -343,9 +344,32 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             bright_enough=self._bright_enough(node),
             eco_temp_reached=self._eco_temp_reached(node),
             heat_over_max=self._heat_over_max(node),
+            tracked_tilt=self._tracked_tilt(cfg),
             seconds_since_last_move=self._seconds_since_move(runtime, now),
         )
         return resolve(inp)
+
+    def _tracked_tilt(self, cfg: ResolvedCoverConfig) -> int | None:
+        """Compute the dynamic slat tilt from the current sun elevation.
+
+        Returns ``None`` when tracking does not apply (cover can't tilt or has
+        tracking disabled) or when no sun elevation is available; the resolver
+        then keeps the statically configured tilt.
+        """
+
+        if not (cfg.slat_tracking and cfg.capabilities.can_tilt):
+            return None
+        attrs = self._sun_attrs()
+        if attrs is None:
+            return None
+        _, elevation = attrs
+        elevation_low = cfg.elevation_min if cfg.elevation_min is not None else 0.0
+        elevation_high = cfg.elevation_max if cfg.elevation_max is not None else 90.0
+        return slat_tilt_for_elevation(
+            elevation,
+            elevation_low=elevation_low,
+            elevation_high=elevation_high,
+        )
 
     def _time_window_due(self, node: _CoverNode, controls: RoomControls) -> tuple[bool, bool]:
         """Return ``(morning_due, night_due)`` from the time-window helper."""
@@ -524,18 +548,28 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
     async def _apply_decision(self, node: _CoverNode, decision: Decision, now: datetime) -> None:
         cfg = node.config
         runtime = node.runtime
-        current = self._state_position(self.hass.states.get(cfg.entity_id))
+        state = self.hass.states.get(cfg.entity_id)
+        current = self._state_position(state)
+        current_tilt = state.attributes.get(ATTR_TILT_POSITION) if state else None
 
-        if decision.blocked or decision.position == current:
+        tilt_changed = (
+            decision.tilt is not None
+            and cfg.capabilities.can_tilt
+            and (current_tilt is None or int(current_tilt) != decision.tilt)
+        )
+        position_changed = not decision.blocked and decision.position != current
+
+        if not position_changed and not tilt_changed:
             return
 
-        await self.hass.services.async_call(
-            COVER_DOMAIN,
-            SERVICE_SET_COVER_POSITION,
-            {ATTR_ENTITY_ID: cfg.entity_id, ATTR_POSITION: decision.position},
-            blocking=False,
-        )
-        if decision.tilt is not None and cfg.capabilities.can_tilt:
+        if position_changed:
+            await self.hass.services.async_call(
+                COVER_DOMAIN,
+                SERVICE_SET_COVER_POSITION,
+                {ATTR_ENTITY_ID: cfg.entity_id, ATTR_POSITION: decision.position},
+                blocking=False,
+            )
+        if tilt_changed:
             await self.hass.services.async_call(
                 COVER_DOMAIN,
                 SERVICE_SET_COVER_TILT_POSITION,

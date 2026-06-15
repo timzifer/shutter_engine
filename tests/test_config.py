@@ -38,6 +38,7 @@ def _sample() -> dict:
                             {
                                 "entity_id": "cover.living_south",
                                 "shade_type": "venetian",
+                                "slat_tracking": False,
                                 "mode_positions": {"sun_protection": {"position": 80, "tilt": 45}},
                                 "brightness_close": 30000,
                             }
@@ -69,6 +70,7 @@ def test_parse_config_structure() -> None:
     cover = area.covers[0]
     assert cover.entity_id == "cover.living_south"
     assert cover.shade_type is ShadeType.VENETIAN
+    assert cover.slat_tracking is False
     assert cover.mode_positions[DayMode.SUN_PROTECTION].position == 80
 
 

@@ -80,11 +80,15 @@ def _parse_cover(data: dict[str, Any]) -> CoverConfig:
             can_position=bool(data["capabilities"].get("can_position", True)),
             can_tilt=bool(data["capabilities"].get("can_tilt", False)),
         )
+    slat_tracking = data.get("slat_tracking")
+    if slat_tracking is not None:
+        slat_tracking = bool(slat_tracking)
     return CoverConfig(
         entity_id=data["entity_id"],
         shade_type=ShadeType(data.get("shade_type", ShadeType.STANDARD.value)),
         protection=protection,
         capabilities=capabilities,
+        slat_tracking=slat_tracking,
         mode_positions=_parse_mode_positions(data.get("mode_positions")),
         **_inheritable(data),
     )
