@@ -377,7 +377,9 @@
     },
     "sensor": {
       "status": { "name": "Status" },
-      "debug": { "name": "Debug" }
+      "debug": { "name": "Debug" },
+      "reason": { "name": "Reason" },
+      "trace": { "name": "Trace" }
     }
   }
 }
