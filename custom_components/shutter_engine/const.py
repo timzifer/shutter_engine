@@ -26,6 +26,7 @@ CONF_WIND_ENTITY: Final = "wind_entity"
 CONF_FROST_ENTITY: Final = "frost_entity"
 CONF_FIRE_ENTITY: Final = "fire_entity"
 CONF_BURGLARY_ENTITY: Final = "burglary_entity"
+CONF_IRRADIANCE_ENTITY: Final = "irradiance_entity"
 
 # Coordinator ---------------------------------------------------------------
 # Periodic re-evaluation tick. The resolver also runs on every relevant state

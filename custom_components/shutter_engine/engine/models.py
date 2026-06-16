@@ -97,6 +97,8 @@ _INHERITABLE_FIELDS: tuple[str, ...] = (
     "ventilation_position",
     "brightness_close",
     "brightness_open",
+    "irradiance_close",
+    "irradiance_open",
     "temp_hysteresis",
     "azimuth_center",
     "azimuth_width",
@@ -117,6 +119,8 @@ class _InheritableDefaults:
     ventilation_position: int | None = None
     brightness_close: float | None = None
     brightness_open: float | None = None
+    irradiance_close: float | None = None
+    irradiance_open: float | None = None
     temp_hysteresis: float | None = None
     azimuth_center: float | None = None
     azimuth_width: float | None = None
@@ -139,6 +143,7 @@ class HubConfig(_InheritableDefaults):
     frost_entity: str | None = None
     fire_entity: str | None = None
     burglary_entity: str | None = None
+    irradiance_entity: str | None = None
 
 
 @dataclass
@@ -242,6 +247,7 @@ class WindowConfig(_InheritableDefaults):
     azimuth_from: float | None = None
     azimuth_to: float | None = None
     brightness_entity: str | None = None
+    irradiance_entity: str | None = None
     contact_entity: str | None = None
     is_escape_route: bool = True
 
@@ -266,6 +272,8 @@ class ResolvedCoverConfig:
     ventilation_position: int
     brightness_close: float
     brightness_open: float
+    irradiance_close: float
+    irradiance_open: float
     temp_hysteresis: float
     azimuth_center: float | None
     azimuth_width: float | None
@@ -285,6 +293,8 @@ _HARD_DEFAULTS: dict[str, object] = {
     "ventilation_position": 10,
     "brightness_close": 40000.0,
     "brightness_open": 20000.0,
+    "irradiance_close": 300.0,
+    "irradiance_open": 150.0,
     "temp_hysteresis": 0.5,
     "azimuth_center": None,
     "azimuth_width": None,

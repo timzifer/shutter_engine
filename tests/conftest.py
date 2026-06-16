@@ -37,6 +37,8 @@ def make_cover_config(**overrides) -> ResolvedCoverConfig:
         "ventilation_position": 10,
         "brightness_close": 40000.0,
         "brightness_open": 20000.0,
+        "irradiance_close": 300.0,
+        "irradiance_open": 150.0,
         "temp_hysteresis": 0.5,
         "azimuth_center": None,
         "azimuth_width": None,

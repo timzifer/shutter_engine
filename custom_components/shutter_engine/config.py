@@ -33,6 +33,8 @@ _INHERITABLE_KEYS = (
     "ventilation_position",
     "brightness_close",
     "brightness_open",
+    "irradiance_close",
+    "irradiance_open",
     "temp_hysteresis",
     "azimuth_center",
     "azimuth_width",
@@ -92,6 +94,7 @@ def parse_hub(data: dict[str, Any]) -> HubConfig:
         frost_entity=data.get("frost_entity"),
         fire_entity=data.get("fire_entity"),
         burglary_entity=data.get("burglary_entity"),
+        irradiance_entity=data.get("irradiance_entity"),
         **_inheritable(data),
     )
 
@@ -184,6 +187,7 @@ def parse_window(data: dict[str, Any]) -> WindowConfig:
         azimuth_from=data.get("azimuth_from"),
         azimuth_to=data.get("azimuth_to"),
         brightness_entity=data.get("brightness_entity"),
+        irradiance_entity=data.get("irradiance_entity"),
         contact_entity=data.get("contact_entity"),
         is_escape_route=bool(data.get("is_escape_route", True)),
         **_inheritable(data),
@@ -231,6 +235,7 @@ class WindowNode:
     weekend_schedule: ScheduleConfig | None
     weekend_coupling: bool
     brightness_entity: str | None
+    irradiance_entity: str | None
     contact_entity: str | None
     members: list[WindowCoverMember]
 
@@ -311,6 +316,7 @@ def build_engine_state(
                 weekend_schedule=weekend_schedule_for(ruleset),
                 weekend_coupling=ruleset.weekend_coupling,
                 brightness_entity=window.brightness_entity,
+                irradiance_entity=window.irradiance_entity,
                 contact_entity=window.contact_entity,
                 members=members,
             )

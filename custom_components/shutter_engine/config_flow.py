@@ -43,6 +43,7 @@ from .const import (
     CONF_BURGLARY_ENTITY,
     CONF_FIRE_ENTITY,
     CONF_FROST_ENTITY,
+    CONF_IRRADIANCE_ENTITY,
     CONF_SUN_ENTITY,
     CONF_WEATHER_ENTITY,
     CONF_WIND_ENTITY,
@@ -164,6 +165,7 @@ def _hub_schema(defaults: dict[str, Any]) -> vol.Schema:
         (CONF_FROST_ENTITY, "binary_sensor"),
         (CONF_FIRE_ENTITY, "binary_sensor"),
         (CONF_BURGLARY_ENTITY, "binary_sensor"),
+        (CONF_IRRADIANCE_ENTITY, "sensor"),
     ):
         key_, sel = _opt(key, defaults, EntitySelector(EntitySelectorConfig(domain=domain)))
         fields[key_] = sel
@@ -340,6 +342,8 @@ def _ruleset_data(user_input: dict[str, Any]) -> dict[str, Any]:
         float_keys=(
             "brightness_close",
             "brightness_open",
+            "irradiance_close",
+            "irradiance_open",
             "temp_hysteresis",
             "sun_tracking_deadband",
             "min_movement_interval",
@@ -404,7 +408,7 @@ def _window_data(user_input: dict[str, Any]) -> dict[str, Any]:
     _update_optional(
         data,
         user_input,
-        entity_keys=("brightness_entity", "contact_entity"),
+        entity_keys=("brightness_entity", "irradiance_entity", "contact_entity"),
         float_keys=(
             "azimuth_from",
             "azimuth_to",
@@ -444,6 +448,8 @@ def _ruleset_schema(
     for key, selector in (
         ("brightness_close", _number(minimum=0, step=1000)),
         ("brightness_open", _number(minimum=0, step=1000)),
+        ("irradiance_close", _number(minimum=0, maximum=1500, step=10)),
+        ("irradiance_open", _number(minimum=0, maximum=1500, step=10)),
         ("temp_hysteresis", _number(minimum=0, maximum=10, step=0.1)),
         ("safe_position", _number(minimum=0, maximum=100, step=1)),
         ("ventilation_position", _number(minimum=0, maximum=100, step=1)),
@@ -525,6 +531,13 @@ def _window_schema(
         **_dict(
             _opt(
                 "brightness_entity",
+                defaults,
+                EntitySelector(EntitySelectorConfig(domain="sensor")),
+            )
+        ),
+        **_dict(
+            _opt(
+                "irradiance_entity",
                 defaults,
                 EntitySelector(EntitySelectorConfig(domain="sensor")),
             )

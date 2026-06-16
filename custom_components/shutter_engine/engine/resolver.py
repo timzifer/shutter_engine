@@ -118,6 +118,7 @@ class ResolverInput:
     # Day-mode condition flags (already post-hysteresis) -------------------
     sun_in_funnel: bool = False
     bright_enough: bool = False
+    irradiance_sufficient: bool = False
     eco_temp_reached: bool = False  # room at/above eco set point
     heat_over_max: bool = False  # room above max temperature
 
@@ -246,7 +247,7 @@ def _select_driver(inp: ResolverInput) -> Decision:
 def _day_mode_driver(inp: ResolverInput) -> Decision | None:
     """Resolve the active day mode into a target, or ``None`` when off."""
 
-    shade_conditions = inp.sun_in_funnel and inp.bright_enough
+    shade_conditions = inp.sun_in_funnel and (inp.bright_enough or inp.irradiance_sufficient)
 
     if inp.day_mode is DayMode.SUN_PROTECTION:
         if shade_conditions:

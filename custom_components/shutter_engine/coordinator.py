@@ -76,7 +76,7 @@ _CONTROLLERS_KEY = "__controllers__"
 # legacy single-cover storage layout (runtime fields stored directly under the
 # subentry id) versus the multi-cover layout (nested under each cover entity id).
 _RUNTIME_FIELD_KEYS = frozenset(
-    {"brightness_active", "last_command_at", "last_target", "paused_until"}
+    {"brightness_active", "irradiance_active", "last_command_at", "last_target", "paused_until"}
 )
 
 
@@ -85,6 +85,7 @@ class CoverRuntime:
     """Transient per-cover state owned by the coordinator."""
 
     brightness_hysteresis: Hysteresis
+    irradiance_hysteresis: Hysteresis
     expected_position: int | None = None
     expected_until: datetime | None = None
     last_command_at: datetime | None = None
@@ -94,6 +95,7 @@ class CoverRuntime:
     def as_dict(self) -> dict[str, Any]:
         return {
             "brightness_active": self.brightness_hysteresis.active,
+            "irradiance_active": self.irradiance_hysteresis.active,
             "last_command_at": _iso(self.last_command_at),
             "last_target": self.last_target,
             "paused_until": _iso(self.paused_until),
@@ -184,6 +186,7 @@ class _WindowNode:
     weekend_schedule: ScheduleConfig | None
     weekend_coupling: bool
     brightness_entity: str | None
+    irradiance_entity: str | None
     contact_entity: str | None
     members: list[_CoverMember]
 
@@ -264,6 +267,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                 weekend_schedule=window.weekend_schedule,
                 weekend_coupling=window.weekend_coupling,
                 brightness_entity=window.brightness_entity,
+                irradiance_entity=window.irradiance_entity,
                 contact_entity=window.contact_entity,
                 members=members,
             )
@@ -305,9 +309,13 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                         low=member.config.brightness_open,
                         active=bool(saved.get("brightness_active", False)),
                     ),
+                    irradiance_hysteresis=Hysteresis(
+                        high=member.config.irradiance_close,
+                        low=member.config.irradiance_open,
+                        active=bool(saved.get("irradiance_active", False)),
+                    ),
                     last_command_at=_parse_iso(saved.get("last_command_at")),
                     last_target=saved.get("last_target"),
-                    # paused flags are re-evaluated, never blindly restored (§8).
                     paused_until=None,
                 )
         self._subscribe()
@@ -334,12 +342,14 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             self.hub.frost_entity,
             self.hub.fire_entity,
             self.hub.burglary_entity,
+            self.hub.irradiance_entity,
         ):
             if entity:
                 tracked.add(entity)
         for node in self._windows.values():
             for entity in (
                 node.brightness_entity,
+                node.irradiance_entity,
                 node.contact_entity,
                 node.controller.heating_entity,
                 node.controller.room_temp_entity,
@@ -463,6 +473,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             night_due=night_due,
             sun_in_funnel=self._sun_in_funnel(cfg),
             bright_enough=self._bright_enough(node, member),
+            irradiance_sufficient=self._irradiance_sufficient(node, member),
             eco_temp_reached=self._eco_temp_reached(node, member),
             heat_over_max=self._heat_over_max(node, member),
             tracked_tilt=self._tracked_tilt(cfg),
@@ -675,6 +686,24 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
     def _bright_enough(self, node: _WindowNode, member: _CoverMember) -> bool:
         return member.runtime.brightness_hysteresis.update(self._brightness(node))
+
+    def _irradiance(self, node: _WindowNode) -> float | None:
+        entity_id = node.irradiance_entity or self.hub.irradiance_entity
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return None
+        try:
+            return float(state.state)
+        except ValueError:
+            return None
+
+    def _irradiance_sufficient(self, node: _WindowNode, member: _CoverMember) -> bool:
+        value = self._irradiance(node)
+        if value is None:
+            return False
+        return member.runtime.irradiance_hysteresis.update(value)
 
     def _temperature(self, entity_id: str | None) -> float | None:
         if not entity_id:
