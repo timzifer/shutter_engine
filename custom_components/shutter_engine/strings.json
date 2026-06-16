@@ -11,7 +11,8 @@
           "wind_entity": "Wind/storm sensor",
           "frost_entity": "Frost sensor",
           "fire_entity": "Fire/smoke sensor",
-          "burglary_entity": "Burglary/security sensor"
+          "burglary_entity": "Burglary/security sensor",
+          "irradiance_entity": "Global irradiance sensor (W/m²)"
         },
         "data_description": {
           "sun_entity": "The sun integration entity. Supplies azimuth and elevation for sun tracking and time windows.",
@@ -20,7 +21,8 @@
           "wind_entity": "Binary sensor that turns on during a storm. Drives participating covers to the safe position.",
           "frost_entity": "Binary sensor that turns on during frost. Blocks movement of vulnerable covers.",
           "fire_entity": "Binary sensor that turns on for fire/smoke. Opens covers marked as an escape route.",
-          "burglary_entity": "Binary sensor that turns on for a security alarm."
+          "burglary_entity": "Binary sensor that turns on for a security alarm.",
+          "irradiance_entity": "Sensor providing global solar irradiance in W/m². Used as an alternative to brightness (lux) for shading decisions."
         }
       }
     },
@@ -40,7 +42,8 @@
           "wind_entity": "Wind/storm sensor",
           "frost_entity": "Frost sensor",
           "fire_entity": "Fire/smoke sensor",
-          "burglary_entity": "Burglary/security sensor"
+          "burglary_entity": "Burglary/security sensor",
+          "irradiance_entity": "Global irradiance sensor (W/m²)"
         },
         "data_description": {
           "sun_entity": "The sun integration entity. Supplies azimuth and elevation for sun tracking and time windows.",
@@ -49,7 +52,8 @@
           "wind_entity": "Binary sensor that turns on during a storm. Drives participating covers to the safe position.",
           "frost_entity": "Binary sensor that turns on during frost. Blocks movement of vulnerable covers.",
           "fire_entity": "Binary sensor that turns on for fire/smoke. Opens covers marked as an escape route.",
-          "burglary_entity": "Binary sensor that turns on for a security alarm."
+          "burglary_entity": "Binary sensor that turns on for a security alarm.",
+          "irradiance_entity": "Sensor providing global solar irradiance in W/m². Used as an alternative to brightness (lux) for shading decisions."
         }
       }
     }
@@ -140,8 +144,10 @@
             "eco_tilt": "Eco — tilt (%)",
             "heat_protection_position": "Heat protection — position (%)",
             "heat_protection_tilt": "Heat protection — tilt (%)",
-            "brightness_close": "Close above brightness (lux)",
-            "brightness_open": "Open below brightness (lux)",
+            "brightness_threshold": "Brightness threshold (lux)",
+            "brightness_hysteresis": "Brightness hysteresis (lux)",
+            "irradiance_threshold": "Irradiance threshold (W/m²)",
+            "irradiance_hysteresis": "Irradiance hysteresis (W/m²)",
             "temp_hysteresis": "Temperature hysteresis (°C)",
             "safe_position": "Storm safe position (%)",
             "ventilation_position": "Ventilation position (%)",
@@ -155,8 +161,10 @@
           },
           "data_description": {
             "sun_protection_position": "Target cover position in sun-protection mode (0 closed, 100 open).",
-            "brightness_close": "Above this brightness the cover starts shading.",
-            "brightness_open": "Below this brightness the cover opens again.",
+            "brightness_threshold": "Above this brightness the cover starts shading.",
+            "brightness_hysteresis": "Switching dead band below the brightness threshold before the cover opens again.",
+            "irradiance_threshold": "Above this irradiance the cover starts shading.",
+            "irradiance_hysteresis": "Switching dead band below the irradiance threshold before the cover opens again.",
             "temp_hysteresis": "Switching dead band around the eco/heat temperature thresholds.",
             "safe_position": "Position covers drive to during a storm.",
             "ventilation_position": "Position used when a window is tilted for ventilation.",
@@ -176,8 +184,10 @@
             "eco_tilt": "Eco — tilt (%)",
             "heat_protection_position": "Heat protection — position (%)",
             "heat_protection_tilt": "Heat protection — tilt (%)",
-            "brightness_close": "Close above brightness (lux)",
-            "brightness_open": "Open below brightness (lux)",
+            "brightness_threshold": "Brightness threshold (lux)",
+            "brightness_hysteresis": "Brightness hysteresis (lux)",
+            "irradiance_threshold": "Irradiance threshold (W/m²)",
+            "irradiance_hysteresis": "Irradiance hysteresis (W/m²)",
             "temp_hysteresis": "Temperature hysteresis (°C)",
             "safe_position": "Storm safe position (%)",
             "ventilation_position": "Ventilation position (%)",
@@ -191,8 +201,10 @@
           },
           "data_description": {
             "sun_protection_position": "Target cover position in sun-protection mode (0 closed, 100 open).",
-            "brightness_close": "Above this brightness the cover starts shading.",
-            "brightness_open": "Below this brightness the cover opens again.",
+            "brightness_threshold": "Above this brightness the cover starts shading.",
+            "brightness_hysteresis": "Switching dead band below the brightness threshold before the cover opens again.",
+            "irradiance_threshold": "Above this irradiance the cover starts shading.",
+            "irradiance_hysteresis": "Switching dead band below the irradiance threshold before the cover opens again.",
             "temp_hysteresis": "Switching dead band around the eco/heat temperature thresholds.",
             "safe_position": "Position covers drive to during a storm.",
             "ventilation_position": "Position used when a window is tilted for ventilation.",
@@ -283,6 +295,7 @@
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
             "brightness_entity": "Brightness (lux) sensor",
+            "irradiance_entity": "Irradiance (W/m²) sensor",
             "contact_entity": "Window contact sensor",
             "is_escape_route": "Escape route (fire opens it)",
             "safe_position": "Storm safe position (%)",
@@ -305,6 +318,7 @@
             "azimuth_from": "Start of the sun azimuth range that hits this window.",
             "azimuth_to": "End of the sun azimuth range that hits this window.",
             "brightness_entity": "Optional per-window lux sensor overriding the estimate.",
+            "irradiance_entity": "Optional per-window irradiance sensor overriding the global one.",
             "contact_entity": "Window contact sensor enabling ventilation lock-out.",
             "is_escape_route": "If on, a fire alarm fully opens this cover.",
             "min_movement_interval": "Per-window override for the minimum movement interval."
@@ -323,6 +337,7 @@
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
             "brightness_entity": "Brightness (lux) sensor",
+            "irradiance_entity": "Irradiance (W/m²) sensor",
             "contact_entity": "Window contact sensor",
             "is_escape_route": "Escape route (fire opens it)",
             "safe_position": "Storm safe position (%)",
@@ -345,6 +360,7 @@
             "azimuth_from": "Start of the sun azimuth range that hits this window.",
             "azimuth_to": "End of the sun azimuth range that hits this window.",
             "brightness_entity": "Optional per-window lux sensor overriding the estimate.",
+            "irradiance_entity": "Optional per-window irradiance sensor overriding the global one.",
             "contact_entity": "Window contact sensor enabling ventilation lock-out.",
             "is_escape_route": "If on, a fire alarm fully opens this cover.",
             "min_movement_interval": "Per-window override for the minimum movement interval."

@@ -95,8 +95,10 @@ def slat_tracking_default(shade_type: ShadeType) -> bool:
 _INHERITABLE_FIELDS: tuple[str, ...] = (
     "safe_position",
     "ventilation_position",
-    "brightness_close",
-    "brightness_open",
+    "brightness_threshold",
+    "brightness_hysteresis",
+    "irradiance_threshold",
+    "irradiance_hysteresis",
     "temp_hysteresis",
     "azimuth_center",
     "azimuth_width",
@@ -115,8 +117,10 @@ class _InheritableDefaults:
 
     safe_position: int | None = None
     ventilation_position: int | None = None
-    brightness_close: float | None = None
-    brightness_open: float | None = None
+    brightness_threshold: float | None = None
+    brightness_hysteresis: float | None = None
+    irradiance_threshold: float | None = None
+    irradiance_hysteresis: float | None = None
     temp_hysteresis: float | None = None
     azimuth_center: float | None = None
     azimuth_width: float | None = None
@@ -139,6 +143,7 @@ class HubConfig(_InheritableDefaults):
     frost_entity: str | None = None
     fire_entity: str | None = None
     burglary_entity: str | None = None
+    irradiance_entity: str | None = None
 
 
 @dataclass
@@ -242,6 +247,7 @@ class WindowConfig(_InheritableDefaults):
     azimuth_from: float | None = None
     azimuth_to: float | None = None
     brightness_entity: str | None = None
+    irradiance_entity: str | None = None
     contact_entity: str | None = None
     is_escape_route: bool = True
 
@@ -264,8 +270,10 @@ class ResolvedCoverConfig:
 
     safe_position: int
     ventilation_position: int
-    brightness_close: float
-    brightness_open: float
+    brightness_threshold: float
+    brightness_hysteresis: float
+    irradiance_threshold: float
+    irradiance_hysteresis: float
     temp_hysteresis: float
     azimuth_center: float | None
     azimuth_width: float | None
@@ -283,8 +291,10 @@ class ResolvedCoverConfig:
 _HARD_DEFAULTS: dict[str, object] = {
     "safe_position": 0,
     "ventilation_position": 10,
-    "brightness_close": 40000.0,
-    "brightness_open": 20000.0,
+    "brightness_threshold": 40000.0,
+    "brightness_hysteresis": 20000.0,
+    "irradiance_threshold": 300.0,
+    "irradiance_hysteresis": 100.0,
     "temp_hysteresis": 0.5,
     "azimuth_center": None,
     "azimuth_width": None,

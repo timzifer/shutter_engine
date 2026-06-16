@@ -28,14 +28,14 @@ def test_shade_type_presets() -> None:
 
 
 def test_deepest_value_wins() -> None:
-    hub = HubConfig(brightness_close=40000, safe_position=0)
-    ruleset = RulesetConfig(brightness_close=35000)
+    hub = HubConfig(brightness_threshold=40000, safe_position=0)
+    ruleset = RulesetConfig(brightness_threshold=35000)
     controller = ControllerConfig()
-    window = WindowConfig(entity_id="cover.x", brightness_close=30000)
+    window = WindowConfig(entity_id="cover.x", brightness_threshold=30000)
 
     resolved = resolve_window(window, controller, ruleset, hub)
     # Window overrides ruleset overrides hub.
-    assert resolved.brightness_close == 30000
+    assert resolved.brightness_threshold == 30000
     # Falls back to hub when not set deeper.
     assert resolved.safe_position == 0
 
