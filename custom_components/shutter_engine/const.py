@@ -14,6 +14,7 @@ STORAGE_VERSION: Final = 1
 CONF_HUB: Final = "hub"
 
 # Subentry types -------------------------------------------------------------
+SUBENTRY_SCHEDULE: Final = "schedule"
 SUBENTRY_RULESET: Final = "ruleset"
 SUBENTRY_CONTROLLER: Final = "controller"
 SUBENTRY_WINDOW: Final = "window"

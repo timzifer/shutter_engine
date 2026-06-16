@@ -5,7 +5,8 @@ config entry and edited through a small options flow. Everything else is split
 into individual config *subentries*, each with its own compact add/reconfigure
 form and its own device:
 
-* ``ruleset``     – a reusable behaviour bundle (positions, thresholds, times)
+* ``schedule``    – a reusable time plan (night/morning windows, offset, random)
+* ``ruleset``     – a reusable behaviour bundle (positions, thresholds, schedule)
 * ``controller``  – bound to a Home Assistant area; references one ruleset
 * ``window``      – a single controllable cover; references a controller
 """
@@ -49,6 +50,7 @@ from .const import (
     DOMAIN,
     SUBENTRY_CONTROLLER,
     SUBENTRY_RULESET,
+    SUBENTRY_SCHEDULE,
     SUBENTRY_WINDOW,
 )
 from .engine import DayMode, ShadeType
@@ -138,6 +140,18 @@ def _position(value: Any) -> int | None:
         return None
 
 
+def _is_valid_hhmm(value: Any) -> bool:
+    """Return whether ``value`` is a valid ``HH:MM`` 24h time string."""
+
+    if value in (None, ""):
+        return True  # empty = unset, validated as absent
+    try:
+        hour, minute = (int(part) for part in str(value).split(":"))
+    except (ValueError, AttributeError):
+        return False
+    return 0 <= hour < 24 and 0 <= minute < 60
+
+
 def _hub_schema(defaults: dict[str, Any]) -> vol.Schema:
     """Build the hub configuration schema with optional entity selectors."""
 
@@ -157,7 +171,7 @@ def _hub_schema(defaults: dict[str, Any]) -> vol.Schema:
 
 
 def _time_fields(defaults: dict[str, Any]) -> dict[Any, Any]:
-    """Night/morning time-window form fragment."""
+    """Night/morning time-window form fragment for a schedule."""
 
     night = defaults.get("night", {})
     morning = defaults.get("morning", {})
@@ -170,6 +184,9 @@ def _time_fields(defaults: dict[str, Any]) -> dict[Any, Any]:
         **_dict(
             _opt2("night_offset", night, "rel_offset", _number(minimum=-120, maximum=120, step=1))
         ),
+        **_dict(
+            _opt2("night_random", night, "random_max", _number(minimum=0, maximum=120, step=1))
+        ),
         vol.Required(
             "morning_enabled", description={"suggested_value": morning.get("enabled", False)}
         ): BooleanSelector(),
@@ -180,10 +197,9 @@ def _time_fields(defaults: dict[str, Any]) -> dict[Any, Any]:
                 "morning_offset", morning, "rel_offset", _number(minimum=-120, maximum=120, step=1)
             )
         ),
-        vol.Required(
-            "morning_weekend_coupling",
-            description={"suggested_value": morning.get("weekend_coupling", False)},
-        ): BooleanSelector(),
+        **_dict(
+            _opt2("morning_random", morning, "random_max", _number(minimum=0, maximum=120, step=1))
+        ),
     }
 
 
@@ -246,21 +262,20 @@ def _update_optional(
         _set_or_drop(target, key, _position(value) if value not in (None, "") else None)
 
 
-def _time_function(
-    user_input: dict[str, Any], prefix: str, *, weekend: bool = False
-) -> dict[str, Any]:
+def _time_function(user_input: dict[str, Any], prefix: str) -> dict[str, Any]:
     result: dict[str, Any] = {"enabled": bool(user_input.get(f"{prefix}_enabled", False))}
     start = user_input.get(f"{prefix}_start")
     end = user_input.get(f"{prefix}_end")
     offset = user_input.get(f"{prefix}_offset")
+    random_max = user_input.get(f"{prefix}_random")
     if start:
         result["window_start"] = start
     if end:
         result["window_end"] = end
     if offset not in (None, ""):
         result["rel_offset"] = float(offset)
-    if weekend:
-        result["weekend_coupling"] = bool(user_input.get(f"{prefix}_weekend_coupling", False))
+    if random_max not in (None, ""):
+        result["random_max"] = float(random_max)
     return result
 
 
@@ -296,6 +311,23 @@ def _area_name(hass: Any, area_id: str | None) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _schedule_data(user_input: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": user_input.get("name") or "Zeitplan",
+        "night": _time_function(user_input, "night"),
+        "morning": _time_function(user_input, "morning"),
+    }
+
+
+def _schedule_time_errors(user_input: dict[str, Any]) -> dict[str, str]:
+    """Validate the HH:MM window fields of a schedule form."""
+
+    for key in ("night_start", "night_end", "morning_start", "morning_end"):
+        if not _is_valid_hhmm(user_input.get(key)):
+            return {"base": "invalid_time"}
+    return {}
+
+
 def _ruleset_data(user_input: dict[str, Any]) -> dict[str, Any]:
     data: dict[str, Any] = {"name": user_input.get("name") or "Ruleset"}
     positions = _collect_mode_positions(user_input)
@@ -304,6 +336,7 @@ def _ruleset_data(user_input: dict[str, Any]) -> dict[str, Any]:
     _update_optional(
         data,
         user_input,
+        entity_keys=("schedule_id", "weekend_schedule_id"),
         float_keys=(
             "brightness_close",
             "brightness_open",
@@ -315,8 +348,7 @@ def _ruleset_data(user_input: dict[str, Any]) -> dict[str, Any]:
         ),
         int_keys=("safe_position", "ventilation_position"),
     )
-    data["night"] = _time_function(user_input, "night")
-    data["morning"] = _time_function(user_input, "morning", weekend=True)
+    data["weekend_coupling"] = bool(user_input.get("weekend_coupling", False))
     return data
 
 
@@ -336,8 +368,15 @@ def _controller_data(user_input: dict[str, Any]) -> dict[str, Any]:
 
 
 def _window_title(data: dict[str, Any]) -> str:
-    """Human-readable subentry title for a (possibly multi-cover) surface."""
+    """Human-readable subentry title for a (possibly multi-cover) surface.
 
+    Prefers the user-given name; falls back to the cover list, then a generic
+    placeholder.
+    """
+
+    name = (data.get("name") or "").strip()
+    if name:
+        return name
     entity_ids = data.get("entity_ids") or []
     return ", ".join(entity_ids) if entity_ids else "Fensterfläche"
 
@@ -358,6 +397,7 @@ def _window_data(user_input: dict[str, Any]) -> dict[str, Any]:
         "shade_type": user_input.get("shade_type", ShadeType.STANDARD.value),
         "is_escape_route": bool(user_input.get("is_escape_route", True)),
     }
+    _set_or_drop(data, "name", user_input.get("name"))
     tracking = user_input.get("slat_tracking", _TRACKING_DEFAULT)
     if tracking != _TRACKING_DEFAULT:
         data["slat_tracking"] = tracking == _TRACKING_ON
@@ -386,7 +426,17 @@ def _window_data(user_input: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _ruleset_schema(defaults: dict[str, Any]) -> vol.Schema:
+def _schedule_schema(defaults: dict[str, Any]) -> vol.Schema:
+    fields: dict[Any, Any] = {
+        vol.Required("name", description={"suggested_value": defaults.get("name")}): TextSelector(),
+    }
+    fields.update(_time_fields(defaults))
+    return vol.Schema(fields)
+
+
+def _ruleset_schema(
+    defaults: dict[str, Any], schedule_options: list[SelectOptionDict]
+) -> vol.Schema:
     fields: dict[Any, Any] = {
         vol.Required("name", description={"suggested_value": defaults.get("name")}): TextSelector(),
     }
@@ -403,7 +453,14 @@ def _ruleset_schema(defaults: dict[str, Any]) -> vol.Schema:
         ("elevation_max", _number(minimum=0, maximum=90, step=1)),
     ):
         fields.update(_dict(_opt(key, defaults, selector)))
-    fields.update(_time_fields(defaults))
+    fields.update(_dict(_opt("schedule_id", defaults, _ref_select(schedule_options))))
+    fields.update(_dict(_opt("weekend_schedule_id", defaults, _ref_select(schedule_options))))
+    fields[
+        vol.Required(
+            "weekend_coupling",
+            description={"suggested_value": defaults.get("weekend_coupling", False)},
+        )
+    ] = BooleanSelector()
     return vol.Schema(fields)
 
 
@@ -447,6 +504,7 @@ def _window_schema(
     else:
         tracking = _TRACKING_DEFAULT
     fields: dict[Any, Any] = {
+        **_dict(_opt("name", defaults, TextSelector())),
         vol.Required(
             "entity_ids", description={"suggested_value": _window_entity_ids(defaults)}
         ): EntitySelector(EntitySelectorConfig(domain="cover", multiple=True)),
@@ -520,6 +578,7 @@ class ShutterEngineConfigFlow(ConfigFlow, domain=DOMAIN):
         cls, config_entry: ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
         return {
+            SUBENTRY_SCHEDULE: ScheduleSubentryFlow,
             SUBENTRY_RULESET: RulesetSubentryFlow,
             SUBENTRY_CONTROLLER: ControllerSubentryFlow,
             SUBENTRY_WINDOW: WindowSubentryFlow,
@@ -548,26 +607,69 @@ class ShutterEngineOptionsFlow(OptionsFlow):
 # ---------------------------------------------------------------------------
 
 
-class RulesetSubentryFlow(ConfigSubentryFlow):
-    """Add or reconfigure a reusable ruleset."""
+class ScheduleSubentryFlow(ConfigSubentryFlow):
+    """Add or reconfigure a reusable schedule ("Zeitplan")."""
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         if user_input is not None:
-            data = _ruleset_data(user_input)
-            return self.async_create_entry(title=data["name"], data=data)
-        return self.async_show_form(step_id="user", data_schema=_ruleset_schema({}))
+            errors = _schedule_time_errors(user_input)
+            data = _schedule_data(user_input)
+            if not errors:
+                return self.async_create_entry(title=data["name"], data=data)
+            return self.async_show_form(
+                step_id="user", data_schema=_schedule_schema(data), errors=errors
+            )
+        return self.async_show_form(step_id="user", data_schema=_schedule_schema({}))
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         subentry = self._get_reconfigure_subentry()
         if user_input is not None:
+            errors = _schedule_time_errors(user_input)
+            data = _schedule_data(user_input)
+            if not errors:
+                return self.async_update_and_abort(
+                    self._get_entry(), subentry, title=data["name"], data=data
+                )
+            return self.async_show_form(
+                step_id="reconfigure", data_schema=_schedule_schema(data), errors=errors
+            )
+        return self.async_show_form(
+            step_id="reconfigure", data_schema=_schedule_schema(subentry.data)
+        )
+
+
+class RulesetSubentryFlow(ConfigSubentryFlow):
+    """Add or reconfigure a reusable ruleset."""
+
+    def _schedule_options(self) -> list[SelectOptionDict]:
+        entry = self._get_entry()
+        return [
+            SelectOptionDict(value=sid, label=sub.title)
+            for sid, sub in entry.subentries.items()
+            if sub.subentry_type == SUBENTRY_SCHEDULE
+        ]
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        options = self._schedule_options()
+        if user_input is not None:
+            data = _ruleset_data(user_input)
+            return self.async_create_entry(title=data["name"], data=data)
+        return self.async_show_form(step_id="user", data_schema=_ruleset_schema({}, options))
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        subentry = self._get_reconfigure_subentry()
+        options = self._schedule_options()
+        if user_input is not None:
             data = _ruleset_data(user_input)
             return self.async_update_and_abort(
                 self._get_entry(), subentry, title=data["name"], data=data
             )
         return self.async_show_form(
-            step_id="reconfigure", data_schema=_ruleset_schema(subentry.data)
+            step_id="reconfigure", data_schema=_ruleset_schema(subentry.data, options)
         )
 
 

@@ -101,6 +101,31 @@ def test_storm_ignored_for_non_wind_cover() -> None:
     assert decision.reason is DecisionReason.SUN_PROTECTION
 
 
+def test_disabled_holds_position() -> None:
+    inp = ResolverInput(
+        config=make_cover_config(),
+        enabled=False,
+        day_mode=DayMode.SUN_PROTECTION,
+        sun_in_funnel=True,
+        bright_enough=True,
+        current_position=42,
+    )
+    decision = resolve(inp)
+    # Automation is suppressed: the cover holds where it is.
+    assert decision.position == 42
+    assert decision.reason is DecisionReason.DISABLED
+
+
+def test_disabled_still_yields_to_fire_safety() -> None:
+    inp = ResolverInput(
+        config=make_cover_config(), enabled=False, fire_active=True, current_position=0
+    )
+    decision = resolve(inp)
+    # Safety hazards rank above the disable switch.
+    assert decision.position == POSITION_OPEN
+    assert decision.reason is DecisionReason.FIRE
+
+
 def test_lock_holds_position() -> None:
     inp = ResolverInput(config=make_cover_config(), locked=True, current_position=42)
     decision = resolve(inp)

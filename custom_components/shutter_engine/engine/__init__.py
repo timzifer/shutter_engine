@@ -23,6 +23,7 @@ from .models import (
     ProtectionFlags,
     ResolvedCoverConfig,
     RulesetConfig,
+    ScheduleConfig,
     TimeFunction,
     WindowConfig,
 )
@@ -67,6 +68,7 @@ __all__ = [
     "ResolverInput",
     "ResolverTrace",
     "RulesetConfig",
+    "ScheduleConfig",
     "ShadeType",
     "TemperatureHysteresis",
     "TimeFunction",

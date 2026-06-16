@@ -143,14 +143,32 @@ class HubConfig(_InheritableDefaults):
 
 @dataclass
 class TimeFunction:
-    """Night/morning time-window function configuration."""
+    """Night/morning time-window function configuration.
+
+    Holds one window ``[window_start, window_end]`` plus an optional relative
+    offset to the sun event and a random window. ``random_max`` shifts the
+    computed trigger by a random ``0..random_max`` minutes whenever it is set.
+    """
 
     enabled: bool = False
     window_start: str | None = None  # "HH:MM"
     window_end: str | None = None  # "HH:MM"
     rel_offset: float | None = None  # minutes relative to sunrise/sunset
-    random_max: float = 0.0  # extra random minutes, active with holiday switch
-    weekend_coupling: bool = False  # morning only: load weekend window on non-workdays
+    random_max: float = 0.0  # extra random minutes, applied whenever > 0
+
+
+@dataclass
+class ScheduleConfig:
+    """A reusable schedule ("Zeitplan") bundling the night and morning windows.
+
+    A schedule groups both time-window functions so it can be selected by a
+    ruleset as a whole. A ruleset may pick a weekday schedule and, optionally, a
+    separate weekend schedule that is loaded on non-workdays.
+    """
+
+    name: str = ""
+    night: TimeFunction = field(default_factory=TimeFunction)
+    morning: TimeFunction = field(default_factory=TimeFunction)
 
 
 @dataclass
@@ -158,14 +176,21 @@ class RulesetConfig(_InheritableDefaults):
     """A reusable behaviour bundle, selectable by controllers.
 
     Holds the shade positions per day mode, the inheritable scalar thresholds
-    (brightness/temperature/timing) and the night/morning time-window
-    functions. Many rulesets may exist; each controller references exactly one.
+    (brightness/temperature/timing) and the schedule references. Many rulesets
+    may exist; each controller references exactly one. ``schedule_id`` points to
+    a schedule subentry; ``weekend_schedule_id`` is loaded on non-workdays when
+    ``weekend_coupling`` is set.
     """
 
     name: str = ""
     mode_positions: dict[DayMode, ModePosition] = field(default_factory=dict)
-    night: TimeFunction = field(default_factory=TimeFunction)
-    morning: TimeFunction = field(default_factory=TimeFunction)
+    schedule_id: str = ""
+    weekend_schedule_id: str = ""
+    weekend_coupling: bool = False
+    #: Legacy fallback: schedule synthesized from inline night/morning data
+    #: stored before schedules became their own subentry. ``None`` for new
+    #: rulesets that reference a schedule by id.
+    legacy_schedule: ScheduleConfig | None = None
 
 
 @dataclass
@@ -181,6 +206,7 @@ class ControllerConfig(_InheritableDefaults):
     area_id: str = ""
     name: str = ""
     day_mode: DayMode = DayMode.OFF
+    enabled: bool = True
     locked: bool = False
     holiday: bool = False
     heating_entity: str | None = None
@@ -204,6 +230,7 @@ class WindowConfig(_InheritableDefaults):
 
     entity_id: str = ""
     entity_ids: list[str] = field(default_factory=list)
+    name: str = ""
     controller_id: str = ""
     shade_type: ShadeType = ShadeType.STANDARD
     protection: ProtectionFlags | None = None
