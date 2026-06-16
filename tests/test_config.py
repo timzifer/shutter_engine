@@ -185,9 +185,7 @@ def test_ruleset_references_schedule_subentry() -> None:
 
 
 def test_schedule_random_window_is_parsed() -> None:
-    schedules = {
-        "s": {"morning": {"enabled": True, "window_start": "06:00", "random_max": 15}}
-    }
+    schedules = {"s": {"morning": {"enabled": True, "window_start": "06:00", "random_max": 15}}}
     rulesets = {"rs1": {"name": "R", "schedule_id": "s"}}
     state = build_engine_state(_hub(), rulesets, _controllers(), _windows(), schedules)
     assert state.controllers["ctrl1"].schedule.morning.random_max == 15.0

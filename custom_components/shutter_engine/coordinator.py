@@ -231,9 +231,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             elif sub.subentry_type == "window":
                 windows[sid] = dict(sub.data)
 
-        state = build_engine_state(
-            merged.get("hub", {}), rulesets, controllers, windows, schedules
-        )
+        state = build_engine_state(merged.get("hub", {}), rulesets, controllers, windows, schedules)
         self.hub = state.hub
         self.controllers = state.controllers
 
