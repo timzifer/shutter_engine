@@ -28,7 +28,6 @@ async def async_setup_entry(
     """Set up the per-controller control switches."""
 
     coordinator: ShutterEngineCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities: list[SwitchEntity] = []
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type != "controller":
             continue
