@@ -21,8 +21,8 @@
           "wind_entity": "Binärsensor, der bei Sturm „an“ ist. Fährt teilnehmende Behänge in die Sicherheitsposition.",
           "frost_entity": "Binärsensor, der bei Frost „an“ ist. Blockiert die Bewegung gefährdeter Behänge.",
           "fire_entity": "Binärsensor, der bei Feuer/Rauch „an“ ist. Öffnet als Fluchtweg markierte Behänge.",
-          “burglary_entity”: “Binärsensor, der bei einem Sicherheitsalarm „an” ist.”,
-          “irradiance_entity”: “Sensor für die Globalstrahlung in W/m². Alternative zur Helligkeit (Lux) für die Beschattungsentscheidung.”
+          "burglary_entity": "Binärsensor, der bei einem Sicherheitsalarm „an” ist.",
+          "irradiance_entity": "Sensor für die Globalstrahlung in W/m². Alternative zur Helligkeit (Lux) für die Beschattungsentscheidung."
         }
       }
     },
@@ -52,8 +52,8 @@
           "wind_entity": "Binärsensor, der bei Sturm „an“ ist. Fährt teilnehmende Behänge in die Sicherheitsposition.",
           "frost_entity": "Binärsensor, der bei Frost „an“ ist. Blockiert die Bewegung gefährdeter Behänge.",
           "fire_entity": "Binärsensor, der bei Feuer/Rauch „an“ ist. Öffnet als Fluchtweg markierte Behänge.",
-          “burglary_entity”: “Binärsensor, der bei einem Sicherheitsalarm „an” ist.”,
-          “irradiance_entity”: “Sensor für die Globalstrahlung in W/m². Alternative zur Helligkeit (Lux) für die Beschattungsentscheidung.”
+          "burglary_entity": "Binärsensor, der bei einem Sicherheitsalarm „an” ist.",
+          "irradiance_entity": "Sensor für die Globalstrahlung in W/m². Alternative zur Helligkeit (Lux) für die Beschattungsentscheidung."
         }
       }
     }
