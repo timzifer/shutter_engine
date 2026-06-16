@@ -358,7 +358,7 @@ def _ruleset_data(user_input: dict[str, Any]) -> dict[str, Any]:
 
 def _controller_data(user_input: dict[str, Any]) -> dict[str, Any]:
     data: dict[str, Any] = {
-        "area_id": user_input["area_id"],
+        "area_id": user_input.get("area_id", ""),
         "ruleset_id": user_input["ruleset_id"],
         "day_mode": user_input.get("day_mode", DayMode.OFF.value),
     }
@@ -483,7 +483,7 @@ def _controller_schema(
 ) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(
+            vol.Optional(
                 "area_id", description={"suggested_value": defaults.get("area_id")}
             ): AreaSelector(),
             vol.Required(
@@ -730,11 +730,13 @@ class ControllerSubentryFlow(ConfigSubentryFlow):
             return self.async_abort(reason="no_rulesets")
         errors: dict[str, str] = {}
         if user_input is not None:
-            if self._area_in_use(user_input["area_id"]):
+            area = user_input.get("area_id", "")
+            if area and self._area_in_use(area):
                 errors["base"] = "duplicate_area"
             else:
                 data = _controller_data(user_input)
-                title = _area_name(self.hass, data["area_id"]) or "Controller"
+                title = _area_name(self.hass, data["area_id"]) if data["area_id"] else "Controller"
+                title = title or "Controller"
                 return self.async_create_entry(title=title, data=data)
         return self.async_show_form(
             step_id="user", data_schema=_controller_schema({}, options), errors=errors
@@ -747,11 +749,14 @@ class ControllerSubentryFlow(ConfigSubentryFlow):
         options = self._ruleset_options()
         errors: dict[str, str] = {}
         if user_input is not None:
-            if self._area_in_use(user_input["area_id"], exclude=subentry.subentry_id):
+            area = user_input.get("area_id", "")
+            if area and self._area_in_use(area, exclude=subentry.subentry_id):
                 errors["base"] = "duplicate_area"
             else:
                 data = _controller_data(user_input)
-                title = _area_name(self.hass, data["area_id"]) or subentry.title
+                aid = data["area_id"]
+                title = _area_name(self.hass, aid) if aid else subentry.title
+                title = title or subentry.title
                 return self.async_update_and_abort(
                     self._get_entry(), subentry, title=title, data=data
                 )

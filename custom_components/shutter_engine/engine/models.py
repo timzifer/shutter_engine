@@ -202,12 +202,14 @@ class RulesetConfig(_InheritableDefaults):
 
 @dataclass
 class ControllerConfig(_InheritableDefaults):
-    """A controller bound to a Home Assistant area.
+    """A controller optionally bound to a Home Assistant area.
 
-    Identified by the Home Assistant ``area_id`` it is bound to. ``name`` is
-    only a cached display label resolved from the area registry. References
-    exactly one ruleset by its subentry id (``ruleset_id``); an empty or
-    dangling reference falls back to the hub defaults.
+    When ``area_id`` is set the controller device is hard-bound to the
+    corresponding Home Assistant area; otherwise it works without area
+    assignment. ``name`` is only a cached display label resolved from the
+    area registry. References exactly one ruleset by its subentry id
+    (``ruleset_id``); an empty or dangling reference falls back to the hub
+    defaults.
     """
 
     area_id: str = ""
