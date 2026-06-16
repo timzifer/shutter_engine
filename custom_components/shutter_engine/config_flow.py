@@ -754,7 +754,8 @@ class ControllerSubentryFlow(ConfigSubentryFlow):
                 errors["base"] = "duplicate_area"
             else:
                 data = _controller_data(user_input)
-                title = _area_name(self.hass, data["area_id"]) if data["area_id"] else subentry.title
+                aid = data["area_id"]
+                title = _area_name(self.hass, aid) if aid else subentry.title
                 title = title or subentry.title
                 return self.async_update_and_abort(
                     self._get_entry(), subentry, title=title, data=data
