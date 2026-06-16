@@ -60,9 +60,11 @@ hardware capabilities, each individually overridable.
 - **Controller** — bound to one Home Assistant area; references exactly **one**
   ruleset and adds the heating/temperature entities. Exposes the runtime
   controls (mode select, lock/night/morning/holiday switches, status sensor).
-- **Window** — a single controllable cover: picks its controller and the cover
-  entity, then adds the sun funnel (azimuth/elevation), the escape-route flag
-  and any per-window overrides.
+- **Window** — a controllable surface: picks its controller and **one or more**
+  cover entities, then adds the sun funnel (azimuth/elevation), the escape-route
+  flag and any per-window overrides. Grouping several covers (e.g. a window front
+  in the same room) saves configuration; they share the surface configuration but
+  are each resolved individually from their own position and runtime state.
 
 ## Installation
 
@@ -89,8 +91,8 @@ integration page — each with its own small form and its own device:
 
 1. **Add ruleset** — define the behaviour (positions, thresholds, time windows).
 2. **Add controller** — pick an area and the ruleset that drives it.
-3. **Add window** — pick a cover, its controller, the sun funnel and the
-   escape-route flag.
+3. **Add window** — pick one or more covers, their controller, the sun funnel
+   and the escape-route flag.
 
 Each subentry can be reconfigured or deleted independently. See
 [`examples/subentries.json`](examples/subentries.json) for the stored data
@@ -113,11 +115,18 @@ is available.
 - `switch.<controller>_lock` — suspend automation
 - `switch.<controller>_night` / `switch.<controller>_morning` — time functions
 - `switch.<controller>_holiday` — presence simulation (randomized offsets)
-- `sensor.<controller>_status` — per-cover diagnostic text
-- `sensor.<controller>_debug` — diagnostic decision dump (disabled by default)
+- `sensor.<controller>_status` — per-cover diagnostic text (diagnostic category)
+- `sensor.<controller>_debug` — diagnostic decision dump (disabled by default):
+  per cover the winning rule (`selected_driver`), the final reason and the
+  constraints that took effect
 
-Each **window** additionally exposes `sensor.<window>_status` with the resolved
-decision for that single cover.
+Both controller sensors live in the device's **Diagnostics** section. Each
+**window** additionally exposes `sensor.<window>_status` (also diagnostic),
+summarizing its covers with the resolved decision per cover entity.
+
+Legacy devices left over from before the ruleset/controller/window split (shown
+in Home Assistant as "devices not assigned to a subentry") are removed
+automatically on setup.
 
 ## Development
 

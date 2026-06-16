@@ -38,6 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _bind_devices_to_areas(hass, entry, coordinator)
+    _cleanup_orphan_devices(hass, entry)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
 
@@ -87,3 +88,30 @@ def _bind_devices_to_areas(hass: HomeAssistant, entry: ConfigEntry, coordinator:
         controller_id = coordinator.window_controller_id(subentry_id)
         if controller_id is not None:
             bind(f"window_{subentry_id}", coordinator.controller_area_id(controller_id))
+
+
+def _cleanup_orphan_devices(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove legacy devices that don't belong to any current subentry.
+
+    Before the split into ruleset/controller/window subentries, devices were
+    attached to the config entry directly. Those leftovers show up in Home
+    Assistant as "devices not assigned to a subentry". Current devices are
+    always linked to a live subentry via ``config_subentry_id`` at add time, so
+    any config-entry device whose subentry link is missing (or points at a
+    deleted subentry) is an orphan and is removed here.
+    """
+
+    from homeassistant.helpers import device_registry as dr
+
+    dev_reg = dr.async_get(hass)
+    valid_subentries = set(entry.subentries)
+
+    for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
+        subentry_ids = device.config_entries_subentries.get(entry.entry_id) or set()
+        if subentry_ids & valid_subentries:
+            continue  # still linked to a live subentry -> keep
+        if len(device.config_entries) > 1:
+            # Shared with another integration: only drop our own link.
+            dev_reg.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
+        else:
+            dev_reg.async_remove_device(device.id)

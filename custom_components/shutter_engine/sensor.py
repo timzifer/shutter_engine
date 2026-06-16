@@ -54,6 +54,7 @@ class ControllerStatusSensor(ShutterEngineControllerEntity, SensorEntity):
 
     _attr_translation_key = "status"
     _attr_icon = "mdi:window-shutter-cog"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self, coordinator: ShutterEngineCoordinator, controller_id: str, display_name: str
@@ -63,16 +64,23 @@ class ControllerStatusSensor(ShutterEngineControllerEntity, SensorEntity):
 
     @property
     def native_value(self) -> str:
-        results = self.coordinator.cover_results_for_controller(self._controller_id)
-        if not results:
+        members = [
+            member
+            for result in self.coordinator.cover_results_for_controller(self._controller_id)
+            for member in result.members
+        ]
+        if not members:
             return "idle"
         # Summarize with the most relevant (first) cover; details in attributes.
-        return results[0].status_text
+        return members[0].status_text
 
     @property
     def extra_state_attributes(self) -> dict[str, str]:
-        results = self.coordinator.cover_results_for_controller(self._controller_id)
-        return {result.decision.reason.value: result.status_text for result in results}
+        return {
+            member.entity_id: member.status_text
+            for result in self.coordinator.cover_results_for_controller(self._controller_id)
+            for member in result.members
+        }
 
 
 class ControllerDebugSensor(ShutterEngineControllerEntity, SensorEntity):
@@ -91,26 +99,37 @@ class ControllerDebugSensor(ShutterEngineControllerEntity, SensorEntity):
 
     @property
     def native_value(self) -> int:
-        return len(self.coordinator.cover_results_for_controller(self._controller_id))
+        return sum(
+            len(result.members)
+            for result in self.coordinator.cover_results_for_controller(self._controller_id)
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, str]:
         results = self.coordinator.cover_results_for_controller(self._controller_id)
         attrs: dict[str, str] = {}
         for result in results:
-            decision = result.decision
-            attrs[result.entity_id] = (
-                f"reason={decision.reason.value}, position={decision.position}, "
-                f"tilt={decision.tilt}, blocked={decision.blocked}"
-            )
+            for member in result.members:
+                decision = member.decision
+                trace = member.trace
+                applied = [c.name for c in trace.constraints if c.applied] or ["none"]
+                detail = (
+                    f"rule={trace.selected_driver}, final={trace.final_reason.value}, "
+                    f"position={decision.position}, tilt={decision.tilt}, "
+                    f"blocked={decision.blocked}, constraints={','.join(applied)}"
+                )
+                if trace.fire_bypassed_constraints:
+                    detail += ", fire_bypass"
+                attrs[member.entity_id] = detail
         return attrs
 
 
 class WindowStatusSensor(ShutterEngineWindowEntity, SensorEntity):
-    """Exposes ``sensor.<window>_status`` for a single cover."""
+    """Exposes ``sensor.<window>_status`` summarizing the surface's covers."""
 
     _attr_translation_key = "status"
     _attr_icon = "mdi:window-shutter-cog"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self, coordinator: ShutterEngineCoordinator, subentry_id: str, display_name: str
@@ -121,17 +140,22 @@ class WindowStatusSensor(ShutterEngineWindowEntity, SensorEntity):
     @property
     def native_value(self) -> str:
         result = self.coordinator.cover_result(self._subentry_id)
-        return result.status_text if result else "idle"
+        if result is None or not result.members:
+            return "idle"
+        if len(result.members) == 1:
+            return result.members[0].status_text
+        return f"{len(result.members)} covers — {result.members[0].status_text}"
 
     @property
     def extra_state_attributes(self) -> dict[str, str]:
         result = self.coordinator.cover_result(self._subentry_id)
         if result is None:
             return {}
-        decision = result.decision
         return {
-            "reason": decision.reason.value,
-            "position": str(decision.position),
-            "tilt": str(decision.tilt),
-            "blocked": str(decision.blocked),
+            member.entity_id: (
+                f"reason={member.decision.reason.value}, "
+                f"position={member.decision.position}, tilt={member.decision.tilt}, "
+                f"blocked={member.decision.blocked}"
+            )
+            for member in result.members
         }

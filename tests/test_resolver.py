@@ -10,6 +10,7 @@ from custom_components.shutter_engine.engine import (
     ProtectionFlags,
     ResolverInput,
     resolve,
+    resolve_trace,
 )
 from custom_components.shutter_engine.engine.const import (
     POSITION_CLOSED,
@@ -458,3 +459,103 @@ def test_slat_tracking_dropped_when_tilt_unsupported() -> None:
         current_tilt=10,
     )
     assert resolve(inp).tilt is None
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic trace (resolve_trace)
+# ---------------------------------------------------------------------------
+
+
+def _applied(trace, name: str) -> bool:
+    return any(c.name == name and c.applied for c in trace.constraints)
+
+
+def test_resolve_trace_decision_matches_resolve() -> None:
+    scenarios = (
+        ResolverInput(config=make_cover_config(), fire_active=True, current_position=0),
+        ResolverInput(config=make_cover_config(), storm_active=True),
+        ResolverInput(
+            config=make_cover_config(),
+            day_mode=DayMode.SUN_PROTECTION,
+            sun_in_funnel=True,
+            bright_enough=True,
+        ),
+        ResolverInput(config=make_cover_config(), current_position=42),
+    )
+    for inp in scenarios:
+        final, trace = resolve_trace(inp)
+        assert final == resolve(inp)
+        assert trace.final_reason is final.reason
+
+
+def test_trace_records_selected_driver() -> None:
+    _, fire = resolve_trace(
+        ResolverInput(config=make_cover_config(), fire_active=True, current_position=0)
+    )
+    assert fire.selected_driver == "fire"
+
+    _, storm = resolve_trace(ResolverInput(config=make_cover_config(), storm_active=True))
+    assert storm.selected_driver == "storm"
+
+    _, sun = resolve_trace(
+        ResolverInput(
+            config=make_cover_config(),
+            day_mode=DayMode.SUN_PROTECTION,
+            sun_in_funnel=True,
+            bright_enough=True,
+        )
+    )
+    assert sun.selected_driver == "sun_protection"
+    # Exactly one rung is marked selected, and it matches.
+    selected = [d for d in sun.drivers if d.selected]
+    assert len(selected) == 1 and selected[0].matched
+
+
+def test_trace_records_applied_constraints() -> None:
+    _, frost = resolve_trace(
+        ResolverInput(config=make_cover_config(), frost_active=True, current_position=0)
+    )
+    assert _applied(frost, "frost")
+
+    _, lock_open = resolve_trace(
+        ResolverInput(config=make_cover_config(), contact_state=ContactState.OPEN)
+    )
+    assert _applied(lock_open, "lockout_open")
+
+    cfg = make_cover_config()
+    _, vent = resolve_trace(
+        ResolverInput(
+            config=cfg,
+            contact_state=ContactState.TILTED,
+            day_mode=DayMode.HEAT_PROTECTION,
+            heat_over_max=True,
+        )
+    )
+    assert _applied(vent, "lockout_ventilation")
+
+    _, interval = resolve_trace(
+        ResolverInput(
+            config=make_cover_config(min_movement_interval=300),
+            day_mode=DayMode.SUN_PROTECTION,
+            sun_in_funnel=True,
+            bright_enough=True,
+            seconds_since_last_move=1,
+            current_position=0,
+        )
+    )
+    assert _applied(interval, "min_interval")
+
+
+def test_trace_fire_bypasses_constraints() -> None:
+    final, trace = resolve_trace(
+        ResolverInput(
+            config=make_cover_config(min_movement_interval=300),
+            fire_active=True,
+            frost_active=True,
+            seconds_since_last_move=1,
+            current_position=0,
+        )
+    )
+    assert final.reason is DecisionReason.FIRE
+    assert trace.fire_bypassed_constraints is True
+    assert not any(c.applied for c in trace.constraints)

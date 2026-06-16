@@ -42,7 +42,7 @@
   },
 
   "window": {
-    "entity_id": "cover.living_room_left",
+    "entity_ids": ["cover.living_room_left", "cover.living_room_right"],
     "controller_id": "<controller subentry id>",
     "shade_type": "venetian",
     "slat_tracking": true,

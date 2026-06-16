@@ -42,6 +42,44 @@ class Decision:
     blocked: bool = False
 
 
+@dataclass(frozen=True)
+class DriverEval:
+    """Diagnostic record for one rung of the driver priority ladder."""
+
+    name: str
+    #: ``True`` when this rung's condition is met.
+    matched: bool
+    #: ``True`` only for the first matching rung (the one that won).
+    selected: bool = False
+
+
+@dataclass(frozen=True)
+class ConstraintEval:
+    """Diagnostic record for one post-ladder constraint."""
+
+    name: str
+    #: ``True`` when the constraint changed or vetoed the driver decision.
+    applied: bool
+    #: Short human-readable effect (e.g. ``"blocked"``, ``"clamped to 10"``).
+    effect: str = ""
+
+
+@dataclass(frozen=True)
+class ResolverTrace:
+    """Full diagnostic trace of a single resolve pass.
+
+    Surfaces which individual rule (driver) won and which constraints took
+    effect, for the controller diagnostics.
+    """
+
+    drivers: tuple[DriverEval, ...]
+    constraints: tuple[ConstraintEval, ...]
+    selected_driver: str
+    final_reason: DecisionReason
+    #: ``True`` when fire/smoke bypassed the frost/min-interval constraints.
+    fire_bypassed_constraints: bool = False
+
+
 @dataclass
 class ResolverInput:
     """Everything the resolver needs to decide for one cover.
@@ -145,52 +183,62 @@ def _open(reason: DecisionReason) -> Decision:
     return Decision(position=POSITION_OPEN, tilt=None, reason=reason)
 
 
+def _burglary_decision(inp: ResolverInput) -> Decision:
+    """Burglary target: explicit position if given, else hold."""
+
+    if inp.burglary_position is not None:
+        return Decision(position=inp.burglary_position, tilt=None, reason=DecisionReason.BURGLARY)
+    return _hold(inp, DecisionReason.BURGLARY)
+
+
+def _select_driver_traced(inp: ResolverInput) -> tuple[Decision, list[DriverEval]]:
+    """Walk the priority ladder, returning the winner plus a per-rung trace.
+
+    Every rung's condition is a side-effect-free predicate, so they can all be
+    evaluated up front for the diagnostic trace; the first matching rung wins.
+    """
+
+    cfg = inp.config
+    day_driver = _day_mode_driver(inp)
+    day_name = day_driver.reason.value if day_driver is not None else "day_mode"
+
+    # (name, matched, decision) ordered by descending priority. The final
+    # "hold" rung always matches, so a winner is guaranteed.
+    rungs: tuple[tuple[str, bool, Decision], ...] = (
+        ("fire", inp.fire_active and cfg.is_escape_route, _open(DecisionReason.FIRE)),
+        ("burglary", inp.burglary_active, _burglary_decision(inp)),
+        (
+            "storm",
+            inp.storm_active and cfg.protection.wind,
+            Decision(position=cfg.safe_position, tilt=None, reason=DecisionReason.STORM),
+        ),
+        ("locked", inp.locked, _hold(inp, DecisionReason.LOCKED)),
+        ("manual_override", inp.manual_override, _hold(inp, DecisionReason.MANUAL_OVERRIDE)),
+        ("morning", inp.morning_due, _open(DecisionReason.MORNING)),
+        (
+            "night",
+            inp.night_due,
+            Decision(position=POSITION_CLOSED, tilt=None, reason=DecisionReason.NIGHT),
+        ),
+        (day_name, day_driver is not None, day_driver or _hold(inp, DecisionReason.HOLD)),
+        ("hold", True, _hold(inp, DecisionReason.HOLD)),
+    )
+
+    chosen: Decision | None = None
+    evals: list[DriverEval] = []
+    for name, matched, decision in rungs:
+        selected = matched and chosen is None
+        evals.append(DriverEval(name=name, matched=matched, selected=selected))
+        if selected:
+            chosen = decision
+    assert chosen is not None  # the "hold" rung always matches
+    return chosen, evals
+
+
 def _select_driver(inp: ResolverInput) -> Decision:
     """Walk the priority ladder and return the first matching driver."""
 
-    cfg = inp.config
-
-    # 1. Fire / smoke (escape route) — unconditional open, breaks constraints.
-    if inp.fire_active and cfg.is_escape_route:
-        return _open(DecisionReason.FIRE)
-
-    # 2. Burglary / security — default: no action (hold), optional position.
-    if inp.burglary_active:
-        if inp.burglary_position is not None:
-            return Decision(
-                position=inp.burglary_position,
-                tilt=None,
-                reason=DecisionReason.BURGLARY,
-            )
-        return _hold(inp, DecisionReason.BURGLARY)
-
-    # 3. Storm — safe position, only for covers participating in wind protection.
-    if inp.storm_active and cfg.protection.wind:
-        return Decision(
-            position=cfg.safe_position,
-            tilt=None,
-            reason=DecisionReason.STORM,
-        )
-
-    # 4. Lock / manual override — hold and suspend automation.
-    if inp.locked:
-        return _hold(inp, DecisionReason.LOCKED)
-    if inp.manual_override:
-        return _hold(inp, DecisionReason.MANUAL_OVERRIDE)
-
-    # 5. Night / morning — gated by the time-window helper upstream.
-    if inp.morning_due:
-        return _open(DecisionReason.MORNING)
-    if inp.night_due:
-        return Decision(position=POSITION_CLOSED, tilt=None, reason=DecisionReason.NIGHT)
-
-    # 6. Sun / eco / heat protection.
-    driver = _day_mode_driver(inp)
-    if driver is not None:
-        return driver
-
-    # 7. Default — hold last position.
-    return _hold(inp, DecisionReason.HOLD)
+    return _select_driver_traced(inp)[0]
 
 
 def _day_mode_driver(inp: ResolverInput) -> Decision | None:
@@ -226,29 +274,40 @@ def _day_mode_driver(inp: ResolverInput) -> Decision | None:
 # ---------------------------------------------------------------------------
 
 
-def _apply_constraints(inp: ResolverInput, driver: Decision) -> Decision:
-    """Apply frost, lock-out and minimum-interval constraints in order."""
+def _apply_constraints_traced(
+    inp: ResolverInput, driver: Decision
+) -> tuple[Decision, list[ConstraintEval], bool]:
+    """Apply frost, lock-out and minimum-interval constraints, with a trace.
+
+    Returns ``(decision, constraint_evals, fire_bypassed_constraints)``.
+    """
 
     cfg = inp.config
+    evals: list[ConstraintEval] = []
 
     # Fire breaks frost and minimum-interval constraints.
     if driver.reason is DecisionReason.FIRE:
-        return driver
+        return driver, evals, True
 
     # Frost — block movement entirely (priority over storm).
     if inp.frost_active and cfg.protection.frost:
-        return _hold(inp, DecisionReason.FROST_BLOCK, blocked=True)
+        evals.append(ConstraintEval("frost", True, "blocked"))
+        return _hold(inp, DecisionReason.FROST_BLOCK, blocked=True), evals, False
+    evals.append(ConstraintEval("frost", False))
 
     decision = driver
 
     # Lock-out protection (window contact).
     if inp.contact_state is ContactState.OPEN:
         # Absolute lock: stay/drive fully open. Safety move, bypasses interval.
-        return Decision(
-            position=POSITION_OPEN,
-            tilt=None,
-            reason=DecisionReason.LOCKOUT_OPEN,
+        evals.append(ConstraintEval("lockout_open", True, "open"))
+        return (
+            Decision(position=POSITION_OPEN, tilt=None, reason=DecisionReason.LOCKOUT_OPEN),
+            evals,
+            False,
         )
+    evals.append(ConstraintEval("lockout_open", False))
+
     if inp.contact_state is ContactState.TILTED and decision.position < cfg.ventilation_position:
         # Clamp "close" commands to the ventilation slot.
         decision = Decision(
@@ -256,6 +315,11 @@ def _apply_constraints(inp: ResolverInput, driver: Decision) -> Decision:
             tilt=decision.tilt,
             reason=DecisionReason.LOCKOUT_VENTILATION,
         )
+        evals.append(
+            ConstraintEval("lockout_ventilation", True, f"clamped to {cfg.ventilation_position}")
+        )
+    else:
+        evals.append(ConstraintEval("lockout_ventilation", False))
 
     # Minimum movement interval — suppress command spam / relay wear.
     if (
@@ -264,9 +328,17 @@ def _apply_constraints(inp: ResolverInput, driver: Decision) -> Decision:
         and inp.seconds_since_last_move < cfg.min_movement_interval
         and decision.position != inp.current_position
     ):
-        return _hold(inp, DecisionReason.MIN_INTERVAL_BLOCK, blocked=True)
+        evals.append(ConstraintEval("min_interval", True, "blocked"))
+        return _hold(inp, DecisionReason.MIN_INTERVAL_BLOCK, blocked=True), evals, False
+    evals.append(ConstraintEval("min_interval", False))
 
-    return decision
+    return decision, evals, False
+
+
+def _apply_constraints(inp: ResolverInput, driver: Decision) -> Decision:
+    """Apply frost, lock-out and minimum-interval constraints in order."""
+
+    return _apply_constraints_traced(inp, driver)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -303,6 +375,28 @@ def _apply_capabilities(inp: ResolverInput, decision: Decision) -> Decision:
 # ---------------------------------------------------------------------------
 
 
+def resolve_trace(inp: ResolverInput) -> tuple[Decision, ResolverTrace]:
+    """Resolve a single cover and return the decision plus a diagnostic trace.
+
+    The trace records every driver-ladder rung and constraint evaluation so the
+    controller diagnostics can surface which rule won and which constraints
+    took effect.
+    """
+
+    driver, driver_evals = _select_driver_traced(inp)
+    constrained, constraint_evals, fire_bypass = _apply_constraints_traced(inp, driver)
+    final = _apply_capabilities(inp, constrained)
+    selected = next((d.name for d in driver_evals if d.selected), "hold")
+    trace = ResolverTrace(
+        drivers=tuple(driver_evals),
+        constraints=tuple(constraint_evals),
+        selected_driver=selected,
+        final_reason=final.reason,
+        fire_bypassed_constraints=fire_bypass,
+    )
+    return final, trace
+
+
 def resolve(inp: ResolverInput) -> Decision:
     """Resolve the target state for a single cover.
 
@@ -310,6 +404,4 @@ def resolve(inp: ResolverInput) -> Decision:
     the resolver picked it.
     """
 
-    driver = _select_driver(inp)
-    constrained = _apply_constraints(inp, driver)
-    return _apply_capabilities(inp, constrained)
+    return resolve_trace(inp)[0]

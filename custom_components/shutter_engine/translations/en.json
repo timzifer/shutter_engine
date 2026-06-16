@@ -155,9 +155,9 @@
       "step": {
         "user": {
           "title": "Add window",
-          "description": "A single controllable cover: pick the cover entity and its controller, then add the sun funnel and the escape-route flag.",
+          "description": "A controllable surface: pick one or more cover entities and their controller, then add the sun funnel and the escape-route flag. Several covers (e.g. a window front) share this configuration but are each resolved individually.",
           "data": {
-            "entity_id": "Cover entity",
+            "entity_ids": "Cover entities",
             "controller_id": "Controller",
             "shade_type": "Shade type",
             "slat_tracking": "Dynamic slat tracking",
@@ -183,7 +183,7 @@
         "reconfigure": {
           "title": "Reconfigure window",
           "data": {
-            "entity_id": "Cover entity",
+            "entity_ids": "Cover entities",
             "controller_id": "Controller",
             "shade_type": "Shade type",
             "slat_tracking": "Dynamic slat tracking",
