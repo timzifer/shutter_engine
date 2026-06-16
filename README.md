@@ -49,10 +49,20 @@ inputs into the engine.
 
 ## Data model (inheritance)
 
-Configuration is layered `Hub → Room → Area → Cover`. Every tunable value may be
-set on any level; the **deepest set value wins**. The shade type
+Configuration is layered `Hub → Ruleset → Controller → Window`. Every tunable
+value may be set on any level; the **deepest set value wins**. The shade type
 (`venetian` / `roller_shutter` / `standard`) seeds protection participation and
 hardware capabilities, each individually overridable.
+
+- **Ruleset** — a reusable behaviour bundle: target positions per day mode,
+  brightness/temperature thresholds and the night/morning time windows. Several
+  rulesets can exist side by side.
+- **Controller** — bound to one Home Assistant area; references exactly **one**
+  ruleset and adds the heating/temperature entities. Exposes the runtime
+  controls (mode select, lock/night/morning/holiday switches, status sensor).
+- **Window** — a single controllable cover: picks its controller and the cover
+  entity, then adds the sun funnel (azimuth/elevation), the escape-route flag
+  and any per-window overrides.
 
 ## Installation
 
@@ -71,13 +81,20 @@ Copy `custom_components/shutter_engine` into your Home Assistant
 ## Configuration
 
 The **config flow** sets up the global (hub) entities: sun, weather, workday,
-wind, frost, fire and burglary sensors.
+wind, frost, fire and burglary sensors. They can be changed later from the
+integration's **Configure** (options) dialog.
 
-The room/area/cover tree is edited in the **options flow** through a guided,
-step-by-step editor: navigate rooms → areas → covers with menus and edit each
-level in a form. A raw JSON editor is kept as an *advanced* escape hatch for
-bulk edits. See [`examples/rooms.json`](examples/rooms.json) for a complete
-example.
+Everything else is added as individual **config subentries** from the
+integration page — each with its own small form and its own device:
+
+1. **Add ruleset** — define the behaviour (positions, thresholds, time windows).
+2. **Add controller** — pick an area and the ruleset that drives it.
+3. **Add window** — pick a cover, its controller, the sun funnel and the
+   escape-route flag.
+
+Each subentry can be reconfigured or deleted independently. See
+[`examples/subentries.json`](examples/subentries.json) for the stored data
+shape of each subentry type.
 
 ### Dynamic venetian slat tracking
 
@@ -90,13 +107,17 @@ move. Tracking is on by default for the `venetian` shade type and overridable
 per cover; the statically configured tilt is used as a fallback when no sun data
 is available.
 
-### Entities exposed per room
+### Entities exposed per controller
 
-- `select.<room>_mode` — off / sun protection / eco / heat protection
-- `switch.<room>_lock` — suspend automation
-- `switch.<room>_night` / `switch.<room>_morning` — time functions
-- `switch.<room>_holiday` — presence simulation (randomized offsets)
-- `sensor.<room>_status` — per-cover diagnostic text
+- `select.<controller>_mode` — off / sun protection / eco / heat protection
+- `switch.<controller>_lock` — suspend automation
+- `switch.<controller>_night` / `switch.<controller>_morning` — time functions
+- `switch.<controller>_holiday` — presence simulation (randomized offsets)
+- `sensor.<controller>_status` — per-cover diagnostic text
+- `sensor.<controller>_debug` — diagnostic decision dump (disabled by default)
+
+Each **window** additionally exposes `sensor.<window>_status` with the resolved
+decision for that single cover.
 
 ## Development
 

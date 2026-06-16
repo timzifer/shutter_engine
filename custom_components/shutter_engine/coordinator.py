@@ -4,6 +4,9 @@ The coordinator owns the per-cover runtime state (hysteresis, manual-override
 pauses, last-movement timestamps) and persists it through the Home Assistant
 store helper. On every relevant trigger it builds a :class:`ResolverInput` per
 cover, runs :func:`resolve` and commands the cover.
+
+The configuration is assembled from the config entry's *subentries*
+(``ruleset`` / ``controller`` / ``window``) by :func:`build_engine_state`.
 """
 
 from __future__ import annotations
@@ -29,7 +32,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from .config import parse_config
+from .config import ControllerNode, build_engine_state
 from .const import (
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
@@ -49,12 +52,12 @@ from .engine import (
     resolve_time_window,
     slat_tilt_for_elevation,
 )
-from .engine.models import ResolvedCoverConfig, resolve_cover_config
+from .engine.models import ResolvedCoverConfig
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
-    from .engine import AreaConfig, HubConfig, RoomConfig
+    from .engine import ControllerConfig, HubConfig, TimeFunction
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +66,9 @@ _POSITION_TOLERANCE = 5  # percent
 _EXECUTION_WINDOW = timedelta(minutes=3)
 # Default duration a cover stays paused after a detected manual intervention.
 _DEFAULT_PAUSE = timedelta(hours=2)
+
+# Persisted-state key holding the per-controller runtime toggles.
+_CONTROLLERS_KEY = "__controllers__"
 
 
 @dataclass
@@ -97,16 +103,18 @@ def _parse_iso(value: str | None) -> datetime | None:
 class CoverResult:
     """Resolved decision plus the diagnostic context for one cover."""
 
+    entity_id: str
     decision: Decision
     status_text: str
 
 
 @dataclass
-class RoomControls:
-    """User-facing, runtime-mutable room state driven by the room entities.
+class ControllerControls:
+    """User-facing, runtime-mutable controller state driven by its entities.
 
-    Initialized from the room configuration defaults, then overridden by the
-    ``select``/``switch`` entities and persisted across restarts.
+    Initialized from the controller configuration and its ruleset defaults,
+    then overridden by the ``select``/``switch`` entities and persisted across
+    restarts.
     """
 
     day_mode: DayMode
@@ -127,11 +135,15 @@ class RoomControls:
 
 @dataclass
 class _CoverNode:
-    """A cover together with its resolved config and parent area/room."""
+    """A window cover together with its resolved config and parent controller."""
 
     config: ResolvedCoverConfig
-    area: AreaConfig
-    room: RoomConfig
+    controller_id: str
+    controller: ControllerConfig
+    night: TimeFunction
+    morning: TimeFunction
+    brightness_entity: str | None
+    contact_entity: str | None
     runtime: CoverRuntime = field(default=None)  # type: ignore[assignment]
 
 
@@ -148,57 +160,81 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         self.entry = entry
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self.hub: HubConfig
-        self.rooms: list[RoomConfig]
+        self.controllers: dict[str, ControllerNode] = {}
+        #: Window covers keyed by their *window subentry id*.
         self._covers: dict[str, _CoverNode] = {}
-        self._room_controls: dict[str, RoomControls] = {}
+        #: Reverse index from the driven cover ``entity_id`` to its node.
+        self._node_by_cover_entity: dict[str, _CoverNode] = {}
+        #: Runtime toggles keyed by *controller subentry id*.
+        self._controller_controls: dict[str, ControllerControls] = {}
         self._unsub: list = []
         self._reload_config()
 
     # -- setup -------------------------------------------------------------
 
     def _reload_config(self) -> None:
-        """(Re)build the cover tree from the config entry options."""
+        """(Re)build the cover tree from the config entry subentries."""
 
-        data = {**self.entry.data, **self.entry.options}
-        self.hub, self.rooms = parse_config(data)
-        self._covers = {}
-        for room in self.rooms:
-            self._room_controls.setdefault(
-                room.area_id,
-                RoomControls(
-                    day_mode=room.day_mode,
-                    locked=room.locked,
-                    night_enabled=room.night.enabled,
-                    morning_enabled=room.morning.enabled,
-                    holiday=room.holiday,
+        merged = {**self.entry.data, **self.entry.options}
+        rulesets: dict[str, dict] = {}
+        controllers: dict[str, dict] = {}
+        windows: dict[str, dict] = {}
+        for sid, sub in self.entry.subentries.items():
+            if sub.subentry_type == "ruleset":
+                rulesets[sid] = dict(sub.data)
+            elif sub.subentry_type == "controller":
+                controllers[sid] = {**sub.data, "name": sub.title}
+            elif sub.subentry_type == "window":
+                windows[sid] = dict(sub.data)
+
+        state = build_engine_state(merged.get("hub", {}), rulesets, controllers, windows)
+        self.hub = state.hub
+        self.controllers = state.controllers
+
+        for cid, cnode in state.controllers.items():
+            self._controller_controls.setdefault(
+                cid,
+                ControllerControls(
+                    day_mode=cnode.config.day_mode,
+                    locked=cnode.config.locked,
+                    night_enabled=cnode.night.enabled,
+                    morning_enabled=cnode.morning.enabled,
+                    holiday=cnode.config.holiday,
                 ),
             )
-            for area in room.areas:
-                for cover in area.covers:
-                    resolved = resolve_cover_config(cover, area, room, self.hub)
-                    self._covers[resolved.entity_id] = _CoverNode(
-                        config=resolved, area=area, room=room
-                    )
+
+        self._covers = {}
+        self._node_by_cover_entity = {}
+        for window in state.windows:
+            node = _CoverNode(
+                config=window.config,
+                controller_id=window.controller_id,
+                controller=window.controller,
+                night=window.night,
+                morning=window.morning,
+                brightness_entity=window.brightness_entity,
+                contact_entity=window.contact_entity,
+            )
+            self._covers[window.subentry_id] = node
+            self._node_by_cover_entity[window.config.entity_id] = node
 
     async def async_initialize(self) -> None:
         """Restore persisted state and subscribe to triggers."""
 
         stored = await self._store.async_load() or {}
-        saved_rooms = stored.get("__rooms__", {})
-        for area_id, controls in self._room_controls.items():
-            saved_room = saved_rooms.get(area_id)
-            if saved_room:
-                controls.day_mode = DayMode(saved_room.get("day_mode", controls.day_mode))
-                controls.locked = bool(saved_room.get("locked", controls.locked))
-                controls.night_enabled = bool(
-                    saved_room.get("night_enabled", controls.night_enabled)
-                )
+        saved_controllers = stored.get(_CONTROLLERS_KEY, {})
+        for controller_id, controls in self._controller_controls.items():
+            saved = saved_controllers.get(controller_id)
+            if saved:
+                controls.day_mode = DayMode(saved.get("day_mode", controls.day_mode))
+                controls.locked = bool(saved.get("locked", controls.locked))
+                controls.night_enabled = bool(saved.get("night_enabled", controls.night_enabled))
                 controls.morning_enabled = bool(
-                    saved_room.get("morning_enabled", controls.morning_enabled)
+                    saved.get("morning_enabled", controls.morning_enabled)
                 )
-                controls.holiday = bool(saved_room.get("holiday", controls.holiday))
-        for entity_id, node in self._covers.items():
-            saved = stored.get(entity_id, {})
+                controls.holiday = bool(saved.get("holiday", controls.holiday))
+        for subentry_id, node in self._covers.items():
+            saved = stored.get(subentry_id, {})
             node.runtime = CoverRuntime(
                 brightness_hysteresis=Hysteresis(
                     high=node.config.brightness_close,
@@ -225,7 +261,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         )
 
     def _tracked_entities(self) -> set[str]:
-        tracked: set[str] = set(self._covers)
+        tracked: set[str] = {node.config.entity_id for node in self._covers.values()}
         for entity in (
             self.hub.sun_entity,
             self.hub.weather_entity,
@@ -239,10 +275,10 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                 tracked.add(entity)
         for node in self._covers.values():
             for entity in (
-                node.area.brightness_entity,
-                node.area.contact_entity,
-                node.room.heating_entity,
-                node.room.room_temp_entity,
+                node.brightness_entity,
+                node.contact_entity,
+                node.controller.heating_entity,
+                node.controller.room_temp_entity,
             ):
                 if entity:
                     tracked.add(entity)
@@ -263,21 +299,21 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
     @callback
     def _handle_state_change(self, event) -> None:
         entity_id = event.data.get("entity_id")
-        if entity_id in self._covers:
-            self._detect_manual_intervention(entity_id, event.data.get("new_state"))
+        node = self._node_by_cover_entity.get(entity_id)
+        if node is not None:
+            self._detect_manual_intervention(node, event.data.get("new_state"))
         self.hass.async_create_task(self.async_request_refresh())
 
     # -- manual intervention detection (§8) --------------------------------
 
-    def _detect_manual_intervention(self, entity_id: str, new_state: State | None) -> None:
+    def _detect_manual_intervention(self, node: _CoverNode, new_state: State | None) -> None:
         """Flag a cover as paused when an external change is detected.
 
         Our own commands are tolerated within a position and time window; any
         other change counts as a manual intervention.
         """
 
-        node = self._covers.get(entity_id)
-        if node is None or new_state is None:
+        if new_state is None:
             return
         position = new_state.attributes.get(ATTR_POSITION)
         if position is None:
@@ -298,16 +334,17 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
         # External change -> pause automation for this cover.
         runtime.paused_until = now + _DEFAULT_PAUSE
-        _LOGGER.debug("Manual intervention detected on %s, pausing", entity_id)
+        _LOGGER.debug("Manual intervention detected on %s, pausing", node.config.entity_id)
 
     # -- the update cycle --------------------------------------------------
 
     async def _async_update_data(self) -> dict[str, CoverResult]:
         now = dt_util.utcnow()
         results: dict[str, CoverResult] = {}
-        for entity_id, node in self._covers.items():
+        for subentry_id, node in self._covers.items():
             decision = self._resolve_cover(node, now)
-            results[entity_id] = CoverResult(
+            results[subentry_id] = CoverResult(
+                entity_id=node.config.entity_id,
                 decision=decision,
                 status_text=self._status_text(node, decision),
             )
@@ -318,7 +355,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
     def _resolve_cover(self, node: _CoverNode, now: datetime) -> Decision:
         cfg = node.config
         runtime = node.runtime
-        controls = self._room_controls[node.room.area_id]
+        controls = self._controller_controls[node.controller_id]
         cover_state = self.hass.states.get(cfg.entity_id)
         current_position = self._state_position(cover_state)
         current_tilt = cover_state.attributes.get(ATTR_TILT_POSITION) if cover_state else None
@@ -337,7 +374,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             burglary_active=self._is_on(self.hub.burglary_entity),
             storm_active=self._is_on(self.hub.wind_entity),
             frost_active=self._is_on(self.hub.frost_entity),
-            contact_state=self._contact_state(node.area.contact_entity),
+            contact_state=self._contact_state(node.contact_entity),
             morning_due=morning_due,
             night_due=night_due,
             sun_in_funnel=self._sun_in_funnel(cfg),
@@ -371,21 +408,17 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             elevation_high=elevation_high,
         )
 
-    def _time_window_due(self, node: _CoverNode, controls: RoomControls) -> tuple[bool, bool]:
+    def _time_window_due(self, node: _CoverNode, controls: ControllerControls) -> tuple[bool, bool]:
         """Return ``(morning_due, night_due)`` from the time-window helper."""
 
         now_local = dt_util.now()
         morning_due = False
         night_due = False
 
-        if controls.morning_enabled and node.room.morning.window_start:
-            morning_due = self._window_due(
-                now_local, node.room.morning, self._sun_event("next_rising")
-            )
-        if controls.night_enabled and node.room.night.window_start:
-            night_due = self._window_due(
-                now_local, node.room.night, self._sun_event("next_setting")
-            )
+        if controls.morning_enabled and node.morning.window_start:
+            morning_due = self._window_due(now_local, node.morning, self._sun_event("next_rising"))
+        if controls.night_enabled and node.night.window_start:
+            night_due = self._window_due(now_local, node.night, self._sun_event("next_setting"))
         return morning_due, night_due
 
     def _window_due(self, now_local, fn, sun_event) -> bool:
@@ -478,7 +511,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         )
 
     def _brightness(self, node: _CoverNode) -> float:
-        entity_id = node.area.brightness_entity
+        entity_id = node.brightness_entity
         if entity_id:
             state = self.hass.states.get(entity_id)
             if state is not None and state.state not in ("unknown", "unavailable"):
@@ -525,17 +558,17 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         return float(value)
 
     def _eco_temp_reached(self, node: _CoverNode) -> bool:
-        temp = self._temperature(node.room.heating_entity)
-        if temp is None or node.room.target_temp is None:
+        temp = self._temperature(node.controller.heating_entity)
+        if temp is None or node.controller.target_temp is None:
             return True  # no eco data -> behave like plain sun protection
-        hyst = TemperatureHysteresis(node.room.target_temp, node.config.temp_hysteresis)
+        hyst = TemperatureHysteresis(node.controller.target_temp, node.config.temp_hysteresis)
         return hyst.update(temp)
 
     def _heat_over_max(self, node: _CoverNode) -> bool:
-        temp = self._temperature(node.room.room_temp_entity)
-        if temp is None or node.room.max_temp is None:
+        temp = self._temperature(node.controller.room_temp_entity)
+        if temp is None or node.controller.max_temp is None:
             return False
-        hyst = TemperatureHysteresis(node.room.max_temp, node.config.temp_hysteresis)
+        hyst = TemperatureHysteresis(node.controller.max_temp, node.config.temp_hysteresis)
         return hyst.update(temp)
 
     def _seconds_since_move(self, runtime: CoverRuntime, now: datetime) -> float | None:
@@ -593,32 +626,47 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
     async def _persist(self) -> None:
         data: dict[str, Any] = {
-            entity_id: node.runtime.as_dict()
-            for entity_id, node in self._covers.items()
+            subentry_id: node.runtime.as_dict()
+            for subentry_id, node in self._covers.items()
             if node.runtime is not None
         }
-        data["__rooms__"] = {
-            area_id: controls.as_dict() for area_id, controls in self._room_controls.items()
+        data[_CONTROLLERS_KEY] = {
+            controller_id: controls.as_dict()
+            for controller_id, controls in self._controller_controls.items()
         }
         await self._store.async_save(data)
 
-    # -- room control API (used by the room entities) ----------------------
+    # -- controller / window API (used by the entities) --------------------
 
-    def room_controls(self, area_id: str) -> RoomControls:
-        return self._room_controls[area_id]
+    def controller_controls(self, controller_id: str) -> ControllerControls:
+        return self._controller_controls[controller_id]
 
-    def cover_results_for_room(self, area_id: str) -> list[CoverResult]:
+    def controller_area_id(self, controller_id: str) -> str:
+        node = self.controllers.get(controller_id)
+        return node.config.area_id if node else ""
+
+    def window_ids(self) -> list[str]:
+        return list(self._covers)
+
+    def window_controller_id(self, subentry_id: str) -> str | None:
+        node = self._covers.get(subentry_id)
+        return node.controller_id if node else None
+
+    def cover_result(self, subentry_id: str) -> CoverResult | None:
+        return (self.data or {}).get(subentry_id)
+
+    def cover_results_for_controller(self, controller_id: str) -> list[CoverResult]:
         results = self.data or {}
         return [
-            results[entity_id]
-            for entity_id, node in self._covers.items()
-            if node.room.area_id == area_id and entity_id in results
+            results[subentry_id]
+            for subentry_id, node in self._covers.items()
+            if node.controller_id == controller_id and subentry_id in results
         ]
 
-    async def async_set_room_control(self, area_id: str, **changes: Any) -> None:
-        """Apply a runtime control change for a room and re-resolve."""
+    async def async_set_controller_control(self, controller_id: str, **changes: Any) -> None:
+        """Apply a runtime control change for a controller and re-resolve."""
 
-        controls = self._room_controls[area_id]
+        controls = self._controller_controls[controller_id]
         for key, value in changes.items():
             setattr(controls, key, value)
         await self._persist()

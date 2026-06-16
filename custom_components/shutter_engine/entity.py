@@ -1,4 +1,4 @@
-"""Shared base class for Shutter Engine room entities."""
+"""Shared base classes for Shutter Engine subentry entities."""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ if TYPE_CHECKING:
     from .coordinator import ShutterEngineCoordinator
 
 
-def resolve_room_display(hass: HomeAssistant, area_id: str, fallback: str) -> str:
+def resolve_area_display(hass: HomeAssistant, area_id: str, fallback: str) -> str:
     """Return the Home Assistant area name for ``area_id``, else ``fallback``.
 
-    The room is keyed by ``area_id``; its human-readable label lives in the
+    A controller is keyed by ``area_id``; its human-readable label lives in the
     area registry and is resolved live so a renamed area updates everywhere.
     """
 
@@ -30,27 +30,49 @@ def resolve_room_display(hass: HomeAssistant, area_id: str, fallback: str) -> st
     return fallback
 
 
-class ShutterEngineRoomEntity(CoordinatorEntity["ShutterEngineCoordinator"]):
-    """Base entity bound to a room (a Home Assistant device)."""
+class ShutterEngineControllerEntity(CoordinatorEntity["ShutterEngineCoordinator"]):
+    """Base entity bound to a controller (a Home Assistant device)."""
 
     _attr_has_entity_name = True
 
     def __init__(
-        self, coordinator: ShutterEngineCoordinator, area_id: str, display_name: str
+        self, coordinator: ShutterEngineCoordinator, controller_id: str, display_name: str
     ) -> None:
         super().__init__(coordinator)
-        self._area_id = area_id
+        self._controller_id = controller_id
         self._display_name = display_name
         # The device is bound to its HA area authoritatively after platform
-        # setup (see __init__._bind_room_devices_to_areas), so no soft
-        # ``suggested_area`` is set here.
+        # setup (see __init__._bind_controller_devices_to_areas).
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{coordinator.entry.entry_id}_{area_id}")},
+            identifiers={(DOMAIN, f"controller_{controller_id}")},
             name=display_name,
             manufacturer="Shutter Engine",
-            model="Room",
+            model="Controller",
         )
 
     @property
     def _unique_prefix(self) -> str:
-        return f"{self.coordinator.entry.entry_id}_{self._area_id}"
+        return f"controller_{self._controller_id}"
+
+
+class ShutterEngineWindowEntity(CoordinatorEntity["ShutterEngineCoordinator"]):
+    """Base entity bound to a single window cover (a Home Assistant device)."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, coordinator: ShutterEngineCoordinator, subentry_id: str, display_name: str
+    ) -> None:
+        super().__init__(coordinator)
+        self._subentry_id = subentry_id
+        self._display_name = display_name
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"window_{subentry_id}")},
+            name=display_name,
+            manufacturer="Shutter Engine",
+            model="Window",
+        )
+
+    @property
+    def _unique_prefix(self) -> str:
+        return f"window_{self._subentry_id}"

@@ -1,8 +1,14 @@
-"""Configuration data model with four-level inheritance.
+"""Configuration data model with layered inheritance.
 
-The configuration is layered ``Hub -> Room -> Area -> Cover``. Every tunable
-value may be set on any level; the *deepest* set value wins. This module
-implements that resolution and the per-cover defaults seeded by the shade type.
+The configuration is layered ``Hub -> Ruleset -> Controller -> Window``. Every
+tunable value may be set on any level; the *deepest* set value wins. A
+``Ruleset`` is a reusable behaviour bundle (positions, thresholds, time
+windows); a ``Controller`` is bound to a Home Assistant area and references
+exactly one ruleset; a ``Window`` is a single controllable cover that picks a
+controller and adds its sun funnel, escape-route flag and per-window overrides.
+
+This module implements that resolution and the per-cover defaults seeded by the
+shade type.
 """
 
 from __future__ import annotations
@@ -148,12 +154,28 @@ class TimeFunction:
 
 
 @dataclass
-class RoomConfig(_InheritableDefaults):
-    """A room, exposed as a Home Assistant device.
+class RulesetConfig(_InheritableDefaults):
+    """A reusable behaviour bundle, selectable by controllers.
+
+    Holds the shade positions per day mode, the inheritable scalar thresholds
+    (brightness/temperature/timing) and the night/morning time-window
+    functions. Many rulesets may exist; each controller references exactly one.
+    """
+
+    name: str = ""
+    mode_positions: dict[DayMode, ModePosition] = field(default_factory=dict)
+    night: TimeFunction = field(default_factory=TimeFunction)
+    morning: TimeFunction = field(default_factory=TimeFunction)
+
+
+@dataclass
+class ControllerConfig(_InheritableDefaults):
+    """A controller bound to a Home Assistant area.
 
     Identified by the Home Assistant ``area_id`` it is bound to. ``name`` is
-    only a cached display label resolved from the area registry; it is never
-    used as a key (the ``area_id`` is).
+    only a cached display label resolved from the area registry. References
+    exactly one ruleset by its subentry id (``ruleset_id``); an empty or
+    dangling reference falls back to the hub defaults.
     """
 
     area_id: str = ""
@@ -165,29 +187,20 @@ class RoomConfig(_InheritableDefaults):
     target_temp: float | None = None  # eco set point
     room_temp_entity: str | None = None
     max_temp: float | None = None  # heat-protection threshold
-    night: TimeFunction = field(default_factory=TimeFunction)
-    morning: TimeFunction = field(default_factory=TimeFunction)
-    areas: list[AreaConfig] = field(default_factory=list)
+    ruleset_id: str = ""
 
 
 @dataclass
-class AreaConfig(_InheritableDefaults):
-    """A window area inside a room (horizontal/vertical sun funnel)."""
+class WindowConfig(_InheritableDefaults):
+    """A single controllable window surface (the actual cover actor).
 
-    name: str = ""
-    azimuth_from: float | None = None
-    azimuth_to: float | None = None
-    brightness_entity: str | None = None
-    contact_entity: str | None = None
-    is_escape_route: bool = True
-    covers: list[CoverConfig] = field(default_factory=list)
-
-
-@dataclass
-class CoverConfig(_InheritableDefaults):
-    """A single cover (the actual actor)."""
+    Picks a controller (``controller_id``), the cover ``entity_id`` it drives,
+    its sun funnel (azimuth/elevation), the escape-route flag and any
+    per-window overrides of the inherited scalars and mode positions.
+    """
 
     entity_id: str = ""
+    controller_id: str = ""
     shade_type: ShadeType = ShadeType.STANDARD
     protection: ProtectionFlags | None = None
     capabilities: CoverCapabilities | None = None
@@ -195,13 +208,18 @@ class CoverConfig(_InheritableDefaults):
     #: default (on for venetian blinds, off otherwise).
     slat_tracking: bool | None = None
     mode_positions: dict[DayMode, ModePosition] = field(default_factory=dict)
+    azimuth_from: float | None = None
+    azimuth_to: float | None = None
+    brightness_entity: str | None = None
+    contact_entity: str | None = None
+    is_escape_route: bool = True
 
 
 @dataclass(frozen=True)
 class ResolvedCoverConfig:
     """Fully resolved, flattened configuration for one cover.
 
-    Produced by :func:`resolve_cover_config` after applying inheritance and
+    Produced by :func:`resolve_window` after applying inheritance and
     shade-type presets. The resolver consumes only this flat view.
     """
 
@@ -261,37 +279,45 @@ def _inherit(name: str, *levels: _InheritableDefaults) -> object:
     return _HARD_DEFAULTS[name]
 
 
-def resolve_cover_config(
-    cover: CoverConfig,
-    area: AreaConfig,
-    room: RoomConfig,
+def resolve_window(
+    window: WindowConfig,
+    controller: ControllerConfig,
+    ruleset: RulesetConfig,
     hub: HubConfig,
 ) -> ResolvedCoverConfig:
-    """Flatten the four-level config into a single resolved cover view."""
+    """Flatten the layered config into a single resolved cover view.
 
-    preset_protection, preset_caps = presets_for(cover.shade_type)
-    protection = cover.protection if cover.protection is not None else preset_protection
-    capabilities = cover.capabilities if cover.capabilities is not None else preset_caps
+    Inheritance is ``Window -> Controller -> Ruleset -> Hub`` (deepest wins).
+    Mode positions come from the ruleset, overridden per mode by the window.
+    """
+
+    preset_protection, preset_caps = presets_for(window.shade_type)
+    protection = window.protection if window.protection is not None else preset_protection
+    capabilities = window.capabilities if window.capabilities is not None else preset_caps
     slat_tracking = (
-        cover.slat_tracking
-        if cover.slat_tracking is not None
-        else slat_tracking_default(cover.shade_type)
+        window.slat_tracking
+        if window.slat_tracking is not None
+        else slat_tracking_default(window.shade_type)
     )
 
-    chain = (cover, area, room, hub)
+    chain = (window, controller, ruleset, hub)
     resolved = {name: _inherit(name, *chain) for name in _INHERITABLE_FIELDS}
 
-    # Azimuth funnel is naturally expressed as a from/to span on the area, but
+    # Mode positions: ruleset provides the base, the window overrides per mode.
+    mode_positions = dict(ruleset.mode_positions)
+    mode_positions.update(window.mode_positions)
+
+    # Azimuth funnel is naturally expressed as a from/to span on the window, but
     # may also be given as center/width on any level. Keep both available.
     return ResolvedCoverConfig(
-        entity_id=cover.entity_id,
-        shade_type=cover.shade_type,
+        entity_id=window.entity_id,
+        shade_type=window.shade_type,
         protection=protection,
         capabilities=capabilities,
         slat_tracking=slat_tracking,
-        mode_positions=dict(cover.mode_positions),
-        is_escape_route=area.is_escape_route,
-        azimuth_from=area.azimuth_from,
-        azimuth_to=area.azimuth_to,
+        mode_positions=mode_positions,
+        is_escape_route=window.is_escape_route,
+        azimuth_from=window.azimuth_from,
+        azimuth_to=window.azimuth_to,
         **resolved,  # type: ignore[arg-type]
     )
