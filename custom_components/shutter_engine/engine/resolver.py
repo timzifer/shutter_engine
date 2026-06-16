@@ -96,6 +96,7 @@ class ResolverInput:
 
     # Room / mode state -----------------------------------------------------
     day_mode: DayMode = DayMode.OFF
+    enabled: bool = True
     locked: bool = False
     manual_override: bool = False
 
@@ -212,6 +213,7 @@ def _select_driver_traced(inp: ResolverInput) -> tuple[Decision, list[DriverEval
             inp.storm_active and cfg.protection.wind,
             Decision(position=cfg.safe_position, tilt=None, reason=DecisionReason.STORM),
         ),
+        ("disabled", not inp.enabled, _hold(inp, DecisionReason.DISABLED)),
         ("locked", inp.locked, _hold(inp, DecisionReason.LOCKED)),
         ("manual_override", inp.manual_override, _hold(inp, DecisionReason.MANUAL_OVERRIDE)),
         ("morning", inp.morning_due, _open(DecisionReason.MORNING)),

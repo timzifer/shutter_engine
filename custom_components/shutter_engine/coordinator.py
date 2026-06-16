@@ -12,6 +12,7 @@ The configuration is assembled from the config entry's *subentries*
 from __future__ import annotations
 
 import logging
+import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -58,7 +59,7 @@ from .engine.models import ResolvedCoverConfig
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
-    from .engine import ControllerConfig, HubConfig, TimeFunction
+    from .engine import ControllerConfig, HubConfig, ScheduleConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -146,6 +147,7 @@ class ControllerControls:
     """
 
     day_mode: DayMode
+    enabled: bool
     locked: bool
     night_enabled: bool
     morning_enabled: bool
@@ -154,6 +156,7 @@ class ControllerControls:
     def as_dict(self) -> dict[str, Any]:
         return {
             "day_mode": self.day_mode.value,
+            "enabled": self.enabled,
             "locked": self.locked,
             "night_enabled": self.night_enabled,
             "morning_enabled": self.morning_enabled,
@@ -177,8 +180,9 @@ class _WindowNode:
     subentry_id: str
     controller_id: str
     controller: ControllerConfig
-    night: TimeFunction
-    morning: TimeFunction
+    schedule: ScheduleConfig
+    weekend_schedule: ScheduleConfig | None
+    weekend_coupling: bool
     brightness_entity: str | None
     contact_entity: str | None
     members: list[_CoverMember]
@@ -213,29 +217,36 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         """(Re)build the cover tree from the config entry subentries."""
 
         merged = {**self.entry.data, **self.entry.options}
+        schedules: dict[str, dict] = {}
         rulesets: dict[str, dict] = {}
         controllers: dict[str, dict] = {}
         windows: dict[str, dict] = {}
         for sid, sub in self.entry.subentries.items():
-            if sub.subentry_type == "ruleset":
+            if sub.subentry_type == "schedule":
+                schedules[sid] = dict(sub.data)
+            elif sub.subentry_type == "ruleset":
                 rulesets[sid] = dict(sub.data)
             elif sub.subentry_type == "controller":
                 controllers[sid] = {**sub.data, "name": sub.title}
             elif sub.subentry_type == "window":
                 windows[sid] = dict(sub.data)
 
-        state = build_engine_state(merged.get("hub", {}), rulesets, controllers, windows)
+        state = build_engine_state(
+            merged.get("hub", {}), rulesets, controllers, windows, schedules
+        )
         self.hub = state.hub
         self.controllers = state.controllers
 
         for cid, cnode in state.controllers.items():
+            schedule = self._active_schedule(cnode)
             self._controller_controls.setdefault(
                 cid,
                 ControllerControls(
                     day_mode=cnode.config.day_mode,
+                    enabled=cnode.config.enabled,
                     locked=cnode.config.locked,
-                    night_enabled=cnode.night.enabled,
-                    morning_enabled=cnode.morning.enabled,
+                    night_enabled=schedule.night.enabled,
+                    morning_enabled=schedule.morning.enabled,
                     holiday=cnode.config.holiday,
                 ),
             )
@@ -251,8 +262,9 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                 subentry_id=window.subentry_id,
                 controller_id=window.controller_id,
                 controller=window.controller,
-                night=window.night,
-                morning=window.morning,
+                schedule=window.schedule,
+                weekend_schedule=window.weekend_schedule,
+                weekend_coupling=window.weekend_coupling,
                 brightness_entity=window.brightness_entity,
                 contact_entity=window.contact_entity,
                 members=members,
@@ -275,6 +287,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             saved = saved_controllers.get(controller_id)
             if saved:
                 controls.day_mode = DayMode(saved.get("day_mode", controls.day_mode))
+                controls.enabled = bool(saved.get("enabled", controls.enabled))
                 controls.locked = bool(saved.get("locked", controls.locked))
                 controls.night_enabled = bool(saved.get("night_enabled", controls.night_enabled))
                 controls.morning_enabled = bool(
@@ -440,6 +453,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             current_position=current_position,
             current_tilt=current_tilt,
             day_mode=controls.day_mode,
+            enabled=controls.enabled,
             locked=controls.locked,
             manual_override=manual_override,
             fire_active=self._is_on(self.hub.fire_entity),
@@ -480,35 +494,82 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             elevation_high=elevation_high,
         )
 
+    def _active_schedule(self, node: _WindowNode | ControllerNode) -> ScheduleConfig:
+        """Return the schedule in effect: weekend variant on non-workdays."""
+
+        if node.weekend_coupling and node.weekend_schedule and self._is_non_workday():
+            return node.weekend_schedule
+        return node.schedule
+
+    def _is_non_workday(self) -> bool:
+        """``True`` when a workday sensor is configured and reports a non-workday.
+
+        Mirrors the Home Assistant workday binary sensor convention where ``on``
+        means today is a working day. Without a configured sensor the day is
+        treated as a workday (weekday schedule).
+        """
+
+        entity = self.hub.workday_entity
+        if not entity:
+            return False
+        state = self.hass.states.get(entity)
+        if state is None:
+            return False
+        return state.state == "off"
+
     def _time_window_due(
         self, node: _WindowNode, controls: ControllerControls
     ) -> tuple[bool, bool]:
         """Return ``(morning_due, night_due)`` from the time-window helper."""
 
         now_local = dt_util.now()
+        schedule = self._active_schedule(node)
         morning_due = False
         night_due = False
 
-        if controls.morning_enabled and node.morning.window_start:
-            morning_due = self._window_due(now_local, node.morning, self._sun_event("next_rising"))
-        if controls.night_enabled and node.night.window_start:
-            night_due = self._window_due(now_local, node.night, self._sun_event("next_setting"))
+        if controls.morning_enabled and schedule.morning.window_start:
+            morning_due = self._window_due(
+                now_local, schedule.morning, self._sun_event("next_rising"), node, "morning"
+            )
+        if controls.night_enabled and schedule.night.window_start:
+            night_due = self._window_due(
+                now_local, schedule.night, self._sun_event("next_setting"), node, "night"
+            )
         return morning_due, night_due
 
-    def _window_due(self, now_local, fn, sun_event) -> bool:
+    def _window_due(self, now_local, fn, sun_event, node, kind) -> bool:
         start = self._time_today(now_local, fn.window_start)
         end = self._time_today(now_local, fn.window_end)
         if start is None or end is None or end < start:
             return False
         rel = timedelta(minutes=fn.rel_offset) if fn.rel_offset else timedelta()
+        random_offset = self._random_offset(now_local, fn, node, kind)
         result = resolve_time_window(
             now=now_local,
             window_start=start,
             window_end=end,
             sun_event=sun_event,
             rel_offset=rel,
+            random_offset=random_offset,
         )
         return result.action_due
+
+    @staticmethod
+    def _random_offset(now_local, fn, node, kind) -> timedelta:
+        """Deterministic per-day random shift in ``0..random_max`` minutes.
+
+        Seeding by the local date, the surface id and the window kind keeps the
+        trigger time stable across ticks within a day while still varying from
+        day to day. ``timedelta()`` when no random window is configured.
+        """
+
+        if not fn.random_max or fn.random_max <= 0:
+            return timedelta()
+        # A string seed gives a reproducible draw across restarts (unlike a
+        # tuple, whose hash is salted per process).
+        seed = f"{now_local.date().toordinal()}:{node.subentry_id}:{kind}"
+        minutes = random.Random(seed).uniform(0.0, fn.random_max)
+        return timedelta(minutes=minutes)
 
     def _time_today(self, reference, hhmm: str | None):
         if not hhmm:

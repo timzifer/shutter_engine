@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Shutter Engine",
-        "description": "Select the global entities used by the resolver. All fields are optional and can be changed later. Add rulesets, controllers and windows afterwards from the integration page.",
+        "description": "Select the global entities used by the resolver. All fields are optional and can be changed later. Add schedules, rulesets, controllers and windows afterwards from the integration page.",
         "data": {
           "sun_entity": "Sun entity",
           "weather_entity": "Weather entity",
@@ -12,6 +12,15 @@
           "frost_entity": "Frost sensor",
           "fire_entity": "Fire/smoke sensor",
           "burglary_entity": "Burglary/security sensor"
+        },
+        "data_description": {
+          "sun_entity": "The sun integration entity. Supplies azimuth and elevation for sun tracking and time windows.",
+          "weather_entity": "Weather entity used for condition hints.",
+          "workday_entity": "Binary sensor that is on for working days. Lets rulesets switch to a weekend schedule on non-workdays.",
+          "wind_entity": "Binary sensor that turns on during a storm. Drives participating covers to the safe position.",
+          "frost_entity": "Binary sensor that turns on during frost. Blocks movement of vulnerable covers.",
+          "fire_entity": "Binary sensor that turns on for fire/smoke. Opens covers marked as an escape route.",
+          "burglary_entity": "Binary sensor that turns on for a security alarm."
         }
       }
     },
@@ -23,6 +32,7 @@
     "step": {
       "init": {
         "title": "Global entities",
+        "description": "Edit the global entities used by the resolver. All fields are optional.",
         "data": {
           "sun_entity": "Sun entity",
           "weather_entity": "Weather entity",
@@ -31,11 +41,87 @@
           "frost_entity": "Frost sensor",
           "fire_entity": "Fire/smoke sensor",
           "burglary_entity": "Burglary/security sensor"
+        },
+        "data_description": {
+          "sun_entity": "The sun integration entity. Supplies azimuth and elevation for sun tracking and time windows.",
+          "weather_entity": "Weather entity used for condition hints.",
+          "workday_entity": "Binary sensor that is on for working days. Lets rulesets switch to a weekend schedule on non-workdays.",
+          "wind_entity": "Binary sensor that turns on during a storm. Drives participating covers to the safe position.",
+          "frost_entity": "Binary sensor that turns on during frost. Blocks movement of vulnerable covers.",
+          "fire_entity": "Binary sensor that turns on for fire/smoke. Opens covers marked as an escape route.",
+          "burglary_entity": "Binary sensor that turns on for a security alarm."
         }
       }
     }
   },
   "config_subentries": {
+    "schedule": {
+      "initiate_flow": {
+        "user": "Add schedule",
+        "reconfigure": "Reconfigure schedule"
+      },
+      "entry_type": "Schedule",
+      "step": {
+        "user": {
+          "title": "Add schedule",
+          "description": "A reusable time plan: the night and morning windows with their offset to the sun event and an optional random window. Rulesets reference a schedule (and optionally a separate weekend schedule).",
+          "data": {
+            "name": "Name",
+            "night_enabled": "Enable night function",
+            "night_start": "Night window start (HH:MM)",
+            "night_end": "Night window end (HH:MM)",
+            "night_offset": "Night offset to sunset (minutes)",
+            "night_random": "Night random window (minutes)",
+            "morning_enabled": "Enable morning function",
+            "morning_start": "Morning window start (HH:MM)",
+            "morning_end": "Morning window end (HH:MM)",
+            "morning_offset": "Morning offset to sunrise (minutes)",
+            "morning_random": "Morning random window (minutes)"
+          },
+          "data_description": {
+            "name": "Shown when picking this schedule in a ruleset.",
+            "night_start": "Earliest time the night action may run (24h HH:MM).",
+            "night_end": "Latest enforced night time (\"at the latest\").",
+            "night_offset": "Shifts the trigger relative to sunset; negative is earlier.",
+            "night_random": "When set, the trigger is delayed by a random 0..n minutes (stable per day).",
+            "morning_start": "Earliest time the morning action may run (24h HH:MM).",
+            "morning_end": "Latest enforced morning time (\"at the latest\").",
+            "morning_offset": "Shifts the trigger relative to sunrise; negative is earlier.",
+            "morning_random": "When set, the trigger is delayed by a random 0..n minutes (stable per day)."
+          }
+        },
+        "reconfigure": {
+          "title": "Reconfigure schedule",
+          "data": {
+            "name": "Name",
+            "night_enabled": "Enable night function",
+            "night_start": "Night window start (HH:MM)",
+            "night_end": "Night window end (HH:MM)",
+            "night_offset": "Night offset to sunset (minutes)",
+            "night_random": "Night random window (minutes)",
+            "morning_enabled": "Enable morning function",
+            "morning_start": "Morning window start (HH:MM)",
+            "morning_end": "Morning window end (HH:MM)",
+            "morning_offset": "Morning offset to sunrise (minutes)",
+            "morning_random": "Morning random window (minutes)"
+          },
+          "data_description": {
+            "name": "Shown when picking this schedule in a ruleset.",
+            "night_start": "Earliest time the night action may run (24h HH:MM).",
+            "night_end": "Latest enforced night time (\"at the latest\").",
+            "night_offset": "Shifts the trigger relative to sunset; negative is earlier.",
+            "night_random": "When set, the trigger is delayed by a random 0..n minutes (stable per day).",
+            "morning_start": "Earliest time the morning action may run (24h HH:MM).",
+            "morning_end": "Latest enforced morning time (\"at the latest\").",
+            "morning_offset": "Shifts the trigger relative to sunrise; negative is earlier.",
+            "morning_random": "When set, the trigger is delayed by a random 0..n minutes (stable per day)."
+          }
+        }
+      },
+      "error": {
+        "invalid_time": "Enter the window times as HH:MM in 24-hour format (e.g. 06:30)."
+      }
+    },
     "ruleset": {
       "initiate_flow": {
         "user": "Add ruleset",
@@ -45,7 +131,7 @@
       "step": {
         "user": {
           "title": "Add ruleset",
-          "description": "A reusable behaviour bundle: target positions per day mode, thresholds and the night/morning time windows. Controllers reference one ruleset.",
+          "description": "A reusable behaviour bundle: target positions per day mode, thresholds and the schedule references. Controllers reference one ruleset.",
           "data": {
             "name": "Name",
             "sun_protection_position": "Sun protection — position (%)",
@@ -63,15 +149,21 @@
             "min_movement_interval": "Minimum movement interval (s)",
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
-            "night_enabled": "Enable night function",
-            "night_start": "Night window start (HH:MM)",
-            "night_end": "Night window end (HH:MM)",
-            "night_offset": "Night offset to sunset (minutes)",
-            "morning_enabled": "Enable morning function",
-            "morning_start": "Morning window start (HH:MM)",
-            "morning_end": "Morning window end (HH:MM)",
-            "morning_offset": "Morning offset to sunrise (minutes)",
-            "morning_weekend_coupling": "Use weekend window on non-workdays"
+            "schedule_id": "Schedule",
+            "weekend_schedule_id": "Weekend schedule",
+            "weekend_coupling": "Use weekend schedule on non-workdays"
+          },
+          "data_description": {
+            "sun_protection_position": "Target cover position in sun-protection mode (0 closed, 100 open).",
+            "brightness_close": "Above this brightness the cover starts shading.",
+            "brightness_open": "Below this brightness the cover opens again.",
+            "temp_hysteresis": "Switching dead band around the eco/heat temperature thresholds.",
+            "safe_position": "Position covers drive to during a storm.",
+            "ventilation_position": "Position used when a window is tilted for ventilation.",
+            "min_movement_interval": "Minimum seconds between two movements of the same cover.",
+            "schedule_id": "The schedule providing the night/morning windows.",
+            "weekend_schedule_id": "Optional schedule used on non-workdays instead of the main one.",
+            "weekend_coupling": "Switch to the weekend schedule on non-workdays. Needs a workday sensor on the hub and a weekend schedule."
           }
         },
         "reconfigure": {
@@ -93,15 +185,21 @@
             "min_movement_interval": "Minimum movement interval (s)",
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
-            "night_enabled": "Enable night function",
-            "night_start": "Night window start (HH:MM)",
-            "night_end": "Night window end (HH:MM)",
-            "night_offset": "Night offset to sunset (minutes)",
-            "morning_enabled": "Enable morning function",
-            "morning_start": "Morning window start (HH:MM)",
-            "morning_end": "Morning window end (HH:MM)",
-            "morning_offset": "Morning offset to sunrise (minutes)",
-            "morning_weekend_coupling": "Use weekend window on non-workdays"
+            "schedule_id": "Schedule",
+            "weekend_schedule_id": "Weekend schedule",
+            "weekend_coupling": "Use weekend schedule on non-workdays"
+          },
+          "data_description": {
+            "sun_protection_position": "Target cover position in sun-protection mode (0 closed, 100 open).",
+            "brightness_close": "Above this brightness the cover starts shading.",
+            "brightness_open": "Below this brightness the cover opens again.",
+            "temp_hysteresis": "Switching dead band around the eco/heat temperature thresholds.",
+            "safe_position": "Position covers drive to during a storm.",
+            "ventilation_position": "Position used when a window is tilted for ventilation.",
+            "min_movement_interval": "Minimum seconds between two movements of the same cover.",
+            "schedule_id": "The schedule providing the night/morning windows.",
+            "weekend_schedule_id": "Optional schedule used on non-workdays instead of the main one.",
+            "weekend_coupling": "Switch to the weekend schedule on non-workdays. Needs a workday sensor on the hub and a weekend schedule."
           }
         }
       }
@@ -115,7 +213,7 @@
       "step": {
         "user": {
           "title": "Add controller",
-          "description": "Bind a controller to a Home Assistant area and pick the ruleset that drives its windows.",
+          "description": "Bind a controller to a Home Assistant area and pick the ruleset that drives its windows. Use the controller's switches (e.g. Automation, Lock) to pause it at runtime — for example while a child sleeps.",
           "data": {
             "area_id": "Area",
             "ruleset_id": "Ruleset",
@@ -124,6 +222,15 @@
             "target_temp": "Eco set point (°C)",
             "room_temp_entity": "Room temperature sensor",
             "max_temp": "Heat-protection threshold (°C)"
+          },
+          "data_description": {
+            "area_id": "The Home Assistant area this controller manages. Each area can host only one controller.",
+            "ruleset_id": "The behaviour bundle (positions, thresholds, schedule) applied to this area's windows.",
+            "day_mode": "Initial daytime mode. Adjustable later through the area's mode selector.",
+            "heating_entity": "Climate entity read in eco mode.",
+            "target_temp": "Desired room temperature in eco mode.",
+            "room_temp_entity": "Sensor providing the current room temperature.",
+            "max_temp": "Above this temperature heat-protection shading kicks in."
           }
         },
         "reconfigure": {
@@ -136,6 +243,15 @@
             "target_temp": "Eco set point (°C)",
             "room_temp_entity": "Room temperature sensor",
             "max_temp": "Heat-protection threshold (°C)"
+          },
+          "data_description": {
+            "area_id": "The Home Assistant area this controller manages. Each area can host only one controller.",
+            "ruleset_id": "The behaviour bundle (positions, thresholds, schedule) applied to this area's windows.",
+            "day_mode": "Initial daytime mode. Adjustable later through the area's mode selector.",
+            "heating_entity": "Climate entity read in eco mode.",
+            "target_temp": "Desired room temperature in eco mode.",
+            "room_temp_entity": "Sensor providing the current room temperature.",
+            "max_temp": "Above this temperature heat-protection shading kicks in."
           }
         }
       },
@@ -157,6 +273,7 @@
           "title": "Add window",
           "description": "A controllable surface: pick one or more cover entities and their controller, then add the sun funnel and the escape-route flag. Several covers (e.g. a window front) share this configuration but are each resolved individually.",
           "data": {
+            "name": "Name",
             "entity_ids": "Cover entities",
             "controller_id": "Controller",
             "shade_type": "Shade type",
@@ -178,11 +295,25 @@
             "eco_tilt": "Eco — tilt (%)",
             "heat_protection_position": "Heat protection — position (%)",
             "heat_protection_tilt": "Heat protection — tilt (%)"
+          },
+          "data_description": {
+            "name": "A readable label for this surface, shown instead of the cover list.",
+            "entity_ids": "One or more cover entities driven together as one surface.",
+            "controller_id": "The controller (area) this surface belongs to.",
+            "shade_type": "Hardware preset seeding protection and capabilities.",
+            "slat_tracking": "Re-angle slats with the sun. Default follows the shade type.",
+            "azimuth_from": "Start of the sun azimuth range that hits this window.",
+            "azimuth_to": "End of the sun azimuth range that hits this window.",
+            "brightness_entity": "Optional per-window lux sensor overriding the estimate.",
+            "contact_entity": "Window contact sensor enabling ventilation lock-out.",
+            "is_escape_route": "If on, a fire alarm fully opens this cover.",
+            "min_movement_interval": "Per-window override for the minimum movement interval."
           }
         },
         "reconfigure": {
           "title": "Reconfigure window",
           "data": {
+            "name": "Name",
             "entity_ids": "Cover entities",
             "controller_id": "Controller",
             "shade_type": "Shade type",
@@ -204,6 +335,19 @@
             "eco_tilt": "Eco — tilt (%)",
             "heat_protection_position": "Heat protection — position (%)",
             "heat_protection_tilt": "Heat protection — tilt (%)"
+          },
+          "data_description": {
+            "name": "A readable label for this surface, shown instead of the cover list.",
+            "entity_ids": "One or more cover entities driven together as one surface.",
+            "controller_id": "The controller (area) this surface belongs to.",
+            "shade_type": "Hardware preset seeding protection and capabilities.",
+            "slat_tracking": "Re-angle slats with the sun. Default follows the shade type.",
+            "azimuth_from": "Start of the sun azimuth range that hits this window.",
+            "azimuth_to": "End of the sun azimuth range that hits this window.",
+            "brightness_entity": "Optional per-window lux sensor overriding the estimate.",
+            "contact_entity": "Window contact sensor enabling ventilation lock-out.",
+            "is_escape_route": "If on, a fire alarm fully opens this cover.",
+            "min_movement_interval": "Per-window override for the minimum movement interval."
           }
         }
       },
@@ -225,6 +369,7 @@
       }
     },
     "switch": {
+      "enabled": { "name": "Automation" },
       "lock": { "name": "Lock" },
       "night": { "name": "Night" },
       "morning": { "name": "Morning" },

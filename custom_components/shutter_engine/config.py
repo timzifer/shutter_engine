@@ -20,6 +20,7 @@ from .engine import (
     ProtectionFlags,
     ResolvedCoverConfig,
     RulesetConfig,
+    ScheduleConfig,
     ShadeType,
     TimeFunction,
     WindowConfig,
@@ -56,7 +57,16 @@ def _parse_time_function(data: dict[str, Any] | None) -> TimeFunction:
         window_end=data.get("window_end"),
         rel_offset=data.get("rel_offset"),
         random_max=float(data.get("random_max", 0.0)),
-        weekend_coupling=bool(data.get("weekend_coupling", False)),
+    )
+
+
+def parse_schedule(data: dict[str, Any]) -> ScheduleConfig:
+    """Parse a schedule ("Zeitplan") subentry dictionary."""
+
+    return ScheduleConfig(
+        name=data.get("name", ""),
+        night=_parse_time_function(data.get("night")),
+        morning=_parse_time_function(data.get("morning")),
     )
 
 
@@ -87,13 +97,32 @@ def parse_hub(data: dict[str, Any]) -> HubConfig:
 
 
 def parse_ruleset(data: dict[str, Any]) -> RulesetConfig:
-    """Parse a ruleset subentry dictionary."""
+    """Parse a ruleset subentry dictionary.
+
+    Time windows live in a referenced schedule (``schedule_id``). Rulesets
+    stored before schedules became their own subentry carry inline
+    ``night``/``morning`` data; those are synthesized into a ``legacy_schedule``
+    so existing configurations keep working.
+    """
+
+    legacy_schedule: ScheduleConfig | None = None
+    weekend_coupling = bool(data.get("weekend_coupling", False))
+    if not data.get("schedule_id") and ("night" in data or "morning" in data):
+        legacy_schedule = ScheduleConfig(
+            night=_parse_time_function(data.get("night")),
+            morning=_parse_time_function(data.get("morning")),
+        )
+        # The old layout stored the weekend toggle on the morning function.
+        morning = data.get("morning") or {}
+        weekend_coupling = weekend_coupling or bool(morning.get("weekend_coupling", False))
 
     return RulesetConfig(
         name=data.get("name", ""),
         mode_positions=_parse_mode_positions(data.get("mode_positions")),
-        night=_parse_time_function(data.get("night")),
-        morning=_parse_time_function(data.get("morning")),
+        schedule_id=data.get("schedule_id", ""),
+        weekend_schedule_id=data.get("weekend_schedule_id", ""),
+        weekend_coupling=weekend_coupling,
+        legacy_schedule=legacy_schedule,
         **_inheritable(data),
     )
 
@@ -105,6 +134,7 @@ def parse_controller(data: dict[str, Any]) -> ControllerConfig:
         area_id=data.get("area_id", ""),
         name=data.get("name", ""),
         day_mode=DayMode(data.get("day_mode", DayMode.OFF.value)),
+        enabled=bool(data.get("enabled", True)),
         locked=bool(data.get("locked", False)),
         holiday=bool(data.get("holiday", False)),
         heating_entity=data.get("heating_entity"),
@@ -144,6 +174,7 @@ def parse_window(data: dict[str, Any]) -> WindowConfig:
     return WindowConfig(
         entity_id=data.get("entity_id", ""),
         entity_ids=entity_ids,
+        name=data.get("name", ""),
         controller_id=data.get("controller_id", ""),
         shade_type=ShadeType(data.get("shade_type", ShadeType.STANDARD.value)),
         protection=protection,
@@ -161,11 +192,16 @@ def parse_window(data: dict[str, Any]) -> WindowConfig:
 
 @dataclass
 class ControllerNode:
-    """A parsed controller together with its resolved time-window functions."""
+    """A parsed controller together with its resolved schedules.
+
+    ``schedule`` is the weekday schedule; ``weekend_schedule`` (optional) is
+    loaded on non-workdays when ``weekend_coupling`` is set.
+    """
 
     config: ControllerConfig
-    night: TimeFunction
-    morning: TimeFunction
+    schedule: ScheduleConfig
+    weekend_schedule: ScheduleConfig | None
+    weekend_coupling: bool
 
 
 @dataclass
@@ -191,8 +227,9 @@ class WindowNode:
     subentry_id: str
     controller_id: str
     controller: ControllerConfig
-    night: TimeFunction
-    morning: TimeFunction
+    schedule: ScheduleConfig
+    weekend_schedule: ScheduleConfig | None
+    weekend_coupling: bool
     brightness_entity: str | None
     contact_entity: str | None
     members: list[WindowCoverMember]
@@ -212,41 +249,56 @@ def build_engine_state(
     rulesets: dict[str, dict[str, Any]],
     controllers: dict[str, dict[str, Any]],
     windows: dict[str, dict[str, Any]],
+    schedules: dict[str, dict[str, Any]] | None = None,
 ) -> EngineState:
     """Assemble hub/ruleset/controller/window subentry data into an engine state.
 
-    ``rulesets``/``controllers``/``windows`` map ``subentry_id -> stored data``.
-    A controller referencing a missing ruleset falls back to hub defaults; a
-    window referencing a missing controller is skipped.
+    ``rulesets``/``controllers``/``windows``/``schedules`` map
+    ``subentry_id -> stored data``. A controller referencing a missing ruleset
+    falls back to hub defaults; a window referencing a missing controller is
+    skipped. A ruleset referencing a missing schedule falls back to its legacy
+    inline schedule (or an empty one).
     """
 
     hub = parse_hub(hub_data)
     parsed_rulesets = {sid: parse_ruleset(data) for sid, data in rulesets.items()}
     parsed_controllers = {sid: parse_controller(data) for sid, data in controllers.items()}
+    parsed_schedules = {sid: parse_schedule(data) for sid, data in (schedules or {}).items()}
 
     def ruleset_for(controller: ControllerConfig) -> RulesetConfig:
         return parsed_rulesets.get(controller.ruleset_id, RulesetConfig())
+
+    def weekday_schedule_for(ruleset: RulesetConfig) -> ScheduleConfig:
+        if ruleset.schedule_id:
+            return parsed_schedules.get(ruleset.schedule_id, ScheduleConfig())
+        return ruleset.legacy_schedule or ScheduleConfig()
+
+    def weekend_schedule_for(ruleset: RulesetConfig) -> ScheduleConfig | None:
+        if ruleset.weekend_schedule_id:
+            return parsed_schedules.get(ruleset.weekend_schedule_id)
+        return None
 
     controller_nodes: dict[str, ControllerNode] = {}
     for cid, controller in parsed_controllers.items():
         ruleset = ruleset_for(controller)
         controller_nodes[cid] = ControllerNode(
             config=controller,
-            night=ruleset.night,
-            morning=ruleset.morning,
+            schedule=weekday_schedule_for(ruleset),
+            weekend_schedule=weekend_schedule_for(ruleset),
+            weekend_coupling=ruleset.weekend_coupling,
         )
 
     window_nodes: list[WindowNode] = []
     for sid, data in windows.items():
         window = parse_window(data)
-        controller = parsed_controllers.get(window.controller_id)
-        if controller is None:
+        window_controller = parsed_controllers.get(window.controller_id)
+        if window_controller is None:
             continue  # dangling controller reference -> skip this window
-        ruleset = ruleset_for(controller)
+        ruleset = ruleset_for(window_controller)
         members: list[WindowCoverMember] = []
         for cover_entity in window.entity_ids:
             per_cover = replace(window, entity_id=cover_entity)
-            resolved = resolve_window(per_cover, controller, ruleset, hub)
+            resolved = resolve_window(per_cover, window_controller, ruleset, hub)
             members.append(WindowCoverMember(entity_id=cover_entity, config=resolved))
         if not members:
             continue  # surface without any covers -> nothing to drive
@@ -254,9 +306,10 @@ def build_engine_state(
             WindowNode(
                 subentry_id=sid,
                 controller_id=window.controller_id,
-                controller=controller,
-                night=ruleset.night,
-                morning=ruleset.morning,
+                controller=window_controller,
+                schedule=weekday_schedule_for(ruleset),
+                weekend_schedule=weekend_schedule_for(ruleset),
+                weekend_coupling=ruleset.weekend_coupling,
                 brightness_entity=window.brightness_entity,
                 contact_entity=window.contact_entity,
                 members=members,

@@ -42,6 +42,7 @@ class DecisionReason(StrEnum):
     FIRE = "fire"
     BURGLARY = "burglary"
     STORM = "storm"
+    DISABLED = "disabled"
     LOCKED = "locked"
     MANUAL_OVERRIDE = "manual_override"
     NIGHT = "night"

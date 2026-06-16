@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Shutter Engine",
-        "description": "Wähle die globalen Entitäten für den Resolver. Alle Felder sind optional und später änderbar. Rulesets, Controller und Fensterflächen werden anschließend auf der Integrationsseite hinzugefügt.",
+        "description": "Wähle die globalen Entitäten für den Resolver. Alle Felder sind optional und später änderbar. Zeitpläne, Rulesets, Controller und Fensterflächen werden anschließend auf der Integrationsseite hinzugefügt.",
         "data": {
           "sun_entity": "Sonnen-Entität",
           "weather_entity": "Wetter-Entität",
@@ -12,6 +12,15 @@
           "frost_entity": "Frost-Sensor",
           "fire_entity": "Feuer-/Rauch-Sensor",
           "burglary_entity": "Einbruch-/Sicherheitssensor"
+        },
+        "data_description": {
+          "sun_entity": "Die Entität der Sonnen-Integration. Liefert Azimut und Elevation für Nachführung und Zeitfenster.",
+          "weather_entity": "Wetter-Entität für Zustandshinweise.",
+          "workday_entity": "Binärsensor, der an Arbeitstagen „an“ ist. Erlaubt Rulesets, an Nicht-Arbeitstagen auf einen Wochenend-Zeitplan zu wechseln.",
+          "wind_entity": "Binärsensor, der bei Sturm „an“ ist. Fährt teilnehmende Behänge in die Sicherheitsposition.",
+          "frost_entity": "Binärsensor, der bei Frost „an“ ist. Blockiert die Bewegung gefährdeter Behänge.",
+          "fire_entity": "Binärsensor, der bei Feuer/Rauch „an“ ist. Öffnet als Fluchtweg markierte Behänge.",
+          "burglary_entity": "Binärsensor, der bei einem Sicherheitsalarm „an“ ist."
         }
       }
     },
@@ -23,6 +32,7 @@
     "step": {
       "init": {
         "title": "Globale Entitäten",
+        "description": "Bearbeite die globalen Entitäten für den Resolver. Alle Felder sind optional.",
         "data": {
           "sun_entity": "Sonnen-Entität",
           "weather_entity": "Wetter-Entität",
@@ -31,11 +41,87 @@
           "frost_entity": "Frost-Sensor",
           "fire_entity": "Feuer-/Rauch-Sensor",
           "burglary_entity": "Einbruch-/Sicherheitssensor"
+        },
+        "data_description": {
+          "sun_entity": "Die Entität der Sonnen-Integration. Liefert Azimut und Elevation für Nachführung und Zeitfenster.",
+          "weather_entity": "Wetter-Entität für Zustandshinweise.",
+          "workday_entity": "Binärsensor, der an Arbeitstagen „an“ ist. Erlaubt Rulesets, an Nicht-Arbeitstagen auf einen Wochenend-Zeitplan zu wechseln.",
+          "wind_entity": "Binärsensor, der bei Sturm „an“ ist. Fährt teilnehmende Behänge in die Sicherheitsposition.",
+          "frost_entity": "Binärsensor, der bei Frost „an“ ist. Blockiert die Bewegung gefährdeter Behänge.",
+          "fire_entity": "Binärsensor, der bei Feuer/Rauch „an“ ist. Öffnet als Fluchtweg markierte Behänge.",
+          "burglary_entity": "Binärsensor, der bei einem Sicherheitsalarm „an“ ist."
         }
       }
     }
   },
   "config_subentries": {
+    "schedule": {
+      "initiate_flow": {
+        "user": "Zeitplan hinzufügen",
+        "reconfigure": "Zeitplan neu konfigurieren"
+      },
+      "entry_type": "Zeitplan",
+      "step": {
+        "user": {
+          "title": "Zeitplan hinzufügen",
+          "description": "Ein wiederverwendbarer Zeitplan: das Nacht- und das Morgen-Fenster mit Versatz zum Sonnenereignis und optionalem Random-Window. Rulesets referenzieren einen Zeitplan (und optional einen separaten Wochenend-Zeitplan).",
+          "data": {
+            "name": "Name",
+            "night_enabled": "Nachtfunktion aktivieren",
+            "night_start": "Nacht-Fensterstart (HH:MM)",
+            "night_end": "Nacht-Fensterende (HH:MM)",
+            "night_offset": "Nacht-Versatz zum Sonnenuntergang (Minuten)",
+            "night_random": "Nacht-Random-Window (Minuten)",
+            "morning_enabled": "Morgenfunktion aktivieren",
+            "morning_start": "Morgen-Fensterstart (HH:MM)",
+            "morning_end": "Morgen-Fensterende (HH:MM)",
+            "morning_offset": "Morgen-Versatz zum Sonnenaufgang (Minuten)",
+            "morning_random": "Morgen-Random-Window (Minuten)"
+          },
+          "data_description": {
+            "name": "Wird angezeigt, wenn dieser Zeitplan in einem Ruleset ausgewählt wird.",
+            "night_start": "Frühester Zeitpunkt der Nacht-Aktion (24h HH:MM).",
+            "night_end": "Spätester erzwungener Nacht-Zeitpunkt („spätestens“).",
+            "night_offset": "Verschiebt den Auslöser relativ zum Sonnenuntergang; negativ = früher.",
+            "night_random": "Wenn gesetzt, verschiebt sich der Auslöser um zufällige 0..n Minuten (pro Tag stabil).",
+            "morning_start": "Frühester Zeitpunkt der Morgen-Aktion (24h HH:MM).",
+            "morning_end": "Spätester erzwungener Morgen-Zeitpunkt („spätestens“).",
+            "morning_offset": "Verschiebt den Auslöser relativ zum Sonnenaufgang; negativ = früher.",
+            "morning_random": "Wenn gesetzt, verschiebt sich der Auslöser um zufällige 0..n Minuten (pro Tag stabil)."
+          }
+        },
+        "reconfigure": {
+          "title": "Zeitplan neu konfigurieren",
+          "data": {
+            "name": "Name",
+            "night_enabled": "Nachtfunktion aktivieren",
+            "night_start": "Nacht-Fensterstart (HH:MM)",
+            "night_end": "Nacht-Fensterende (HH:MM)",
+            "night_offset": "Nacht-Versatz zum Sonnenuntergang (Minuten)",
+            "night_random": "Nacht-Random-Window (Minuten)",
+            "morning_enabled": "Morgenfunktion aktivieren",
+            "morning_start": "Morgen-Fensterstart (HH:MM)",
+            "morning_end": "Morgen-Fensterende (HH:MM)",
+            "morning_offset": "Morgen-Versatz zum Sonnenaufgang (Minuten)",
+            "morning_random": "Morgen-Random-Window (Minuten)"
+          },
+          "data_description": {
+            "name": "Wird angezeigt, wenn dieser Zeitplan in einem Ruleset ausgewählt wird.",
+            "night_start": "Frühester Zeitpunkt der Nacht-Aktion (24h HH:MM).",
+            "night_end": "Spätester erzwungener Nacht-Zeitpunkt („spätestens“).",
+            "night_offset": "Verschiebt den Auslöser relativ zum Sonnenuntergang; negativ = früher.",
+            "night_random": "Wenn gesetzt, verschiebt sich der Auslöser um zufällige 0..n Minuten (pro Tag stabil).",
+            "morning_start": "Frühester Zeitpunkt der Morgen-Aktion (24h HH:MM).",
+            "morning_end": "Spätester erzwungener Morgen-Zeitpunkt („spätestens“).",
+            "morning_offset": "Verschiebt den Auslöser relativ zum Sonnenaufgang; negativ = früher.",
+            "morning_random": "Wenn gesetzt, verschiebt sich der Auslöser um zufällige 0..n Minuten (pro Tag stabil)."
+          }
+        }
+      },
+      "error": {
+        "invalid_time": "Gib die Fensterzeiten als HH:MM im 24-Stunden-Format an (z. B. 06:30)."
+      }
+    },
     "ruleset": {
       "initiate_flow": {
         "user": "Ruleset hinzufügen",
@@ -45,7 +131,7 @@
       "step": {
         "user": {
           "title": "Ruleset hinzufügen",
-          "description": "Ein wiederverwendbares Verhaltens-Bundle: Zielpositionen je Tag-Modus, Schwellwerte und die Nacht-/Morgen-Zeitfenster. Controller referenzieren ein Ruleset.",
+          "description": "Ein wiederverwendbares Verhaltens-Bundle: Zielpositionen je Tag-Modus, Schwellwerte und die Zeitplan-Referenzen. Controller referenzieren ein Ruleset.",
           "data": {
             "name": "Name",
             "sun_protection_position": "Sonnenschutz — Position (%)",
@@ -63,15 +149,21 @@
             "min_movement_interval": "Minimales Bewegungsintervall (s)",
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
-            "night_enabled": "Nachtfunktion aktivieren",
-            "night_start": "Nacht-Fensterstart (HH:MM)",
-            "night_end": "Nacht-Fensterende (HH:MM)",
-            "night_offset": "Nacht-Versatz zum Sonnenuntergang (Minuten)",
-            "morning_enabled": "Morgenfunktion aktivieren",
-            "morning_start": "Morgen-Fensterstart (HH:MM)",
-            "morning_end": "Morgen-Fensterende (HH:MM)",
-            "morning_offset": "Morgen-Versatz zum Sonnenaufgang (Minuten)",
-            "morning_weekend_coupling": "Wochenend-Fenster an Nicht-Arbeitstagen verwenden"
+            "schedule_id": "Zeitplan",
+            "weekend_schedule_id": "Wochenend-Zeitplan",
+            "weekend_coupling": "Wochenend-Zeitplan an Nicht-Arbeitstagen verwenden"
+          },
+          "data_description": {
+            "sun_protection_position": "Zielposition im Sonnenschutz-Modus (0 geschlossen, 100 offen).",
+            "brightness_close": "Oberhalb dieser Helligkeit beginnt die Beschattung.",
+            "brightness_open": "Unterhalb dieser Helligkeit wird wieder geöffnet.",
+            "temp_hysteresis": "Schalt-Totband um die Eco-/Hitze-Temperaturschwellen.",
+            "safe_position": "Position, in die Behänge bei Sturm fahren.",
+            "ventilation_position": "Position bei gekipptem Fenster (Lüftung).",
+            "min_movement_interval": "Mindestsekunden zwischen zwei Bewegungen desselben Behangs.",
+            "schedule_id": "Der Zeitplan mit den Nacht-/Morgen-Fenstern.",
+            "weekend_schedule_id": "Optionaler Zeitplan, der an Nicht-Arbeitstagen statt des Haupt-Zeitplans gilt.",
+            "weekend_coupling": "An Nicht-Arbeitstagen auf den Wochenend-Zeitplan wechseln. Benötigt einen Arbeitstag-Sensor am Hub und einen Wochenend-Zeitplan."
           }
         },
         "reconfigure": {
@@ -93,15 +185,21 @@
             "min_movement_interval": "Minimales Bewegungsintervall (s)",
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
-            "night_enabled": "Nachtfunktion aktivieren",
-            "night_start": "Nacht-Fensterstart (HH:MM)",
-            "night_end": "Nacht-Fensterende (HH:MM)",
-            "night_offset": "Nacht-Versatz zum Sonnenuntergang (Minuten)",
-            "morning_enabled": "Morgenfunktion aktivieren",
-            "morning_start": "Morgen-Fensterstart (HH:MM)",
-            "morning_end": "Morgen-Fensterende (HH:MM)",
-            "morning_offset": "Morgen-Versatz zum Sonnenaufgang (Minuten)",
-            "morning_weekend_coupling": "Wochenend-Fenster an Nicht-Arbeitstagen verwenden"
+            "schedule_id": "Zeitplan",
+            "weekend_schedule_id": "Wochenend-Zeitplan",
+            "weekend_coupling": "Wochenend-Zeitplan an Nicht-Arbeitstagen verwenden"
+          },
+          "data_description": {
+            "sun_protection_position": "Zielposition im Sonnenschutz-Modus (0 geschlossen, 100 offen).",
+            "brightness_close": "Oberhalb dieser Helligkeit beginnt die Beschattung.",
+            "brightness_open": "Unterhalb dieser Helligkeit wird wieder geöffnet.",
+            "temp_hysteresis": "Schalt-Totband um die Eco-/Hitze-Temperaturschwellen.",
+            "safe_position": "Position, in die Behänge bei Sturm fahren.",
+            "ventilation_position": "Position bei gekipptem Fenster (Lüftung).",
+            "min_movement_interval": "Mindestsekunden zwischen zwei Bewegungen desselben Behangs.",
+            "schedule_id": "Der Zeitplan mit den Nacht-/Morgen-Fenstern.",
+            "weekend_schedule_id": "Optionaler Zeitplan, der an Nicht-Arbeitstagen statt des Haupt-Zeitplans gilt.",
+            "weekend_coupling": "An Nicht-Arbeitstagen auf den Wochenend-Zeitplan wechseln. Benötigt einen Arbeitstag-Sensor am Hub und einen Wochenend-Zeitplan."
           }
         }
       }
@@ -115,7 +213,7 @@
       "step": {
         "user": {
           "title": "Controller hinzufügen",
-          "description": "Binde einen Controller an einen Home-Assistant-Bereich und wähle das Ruleset, das seine Fensterflächen steuert.",
+          "description": "Binde einen Controller an einen Home-Assistant-Bereich und wähle das Ruleset, das seine Fensterflächen steuert. Über die Schalter des Controllers (z. B. Automatik, Sperre) lässt er sich zur Laufzeit pausieren — etwa wenn ein Kind schläft.",
           "data": {
             "area_id": "Bereich",
             "ruleset_id": "Ruleset",
@@ -124,6 +222,15 @@
             "target_temp": "Eco-Sollwert (°C)",
             "room_temp_entity": "Raumtemperatur-Sensor",
             "max_temp": "Hitzeschutz-Schwelle (°C)"
+          },
+          "data_description": {
+            "area_id": "Der Home-Assistant-Bereich, den dieser Controller verwaltet. Pro Bereich ist nur ein Controller möglich.",
+            "ruleset_id": "Das Verhaltens-Bundle (Positionen, Schwellwerte, Zeitplan) für die Fensterflächen dieses Bereichs.",
+            "day_mode": "Anfänglicher Tag-Modus. Später über den Modus-Selector des Bereichs änderbar.",
+            "heating_entity": "Climate-Entität, die im Eco-Modus gelesen wird.",
+            "target_temp": "Gewünschte Raumtemperatur im Eco-Modus.",
+            "room_temp_entity": "Sensor mit der aktuellen Raumtemperatur.",
+            "max_temp": "Oberhalb dieser Temperatur greift der Hitzeschutz."
           }
         },
         "reconfigure": {
@@ -136,6 +243,15 @@
             "target_temp": "Eco-Sollwert (°C)",
             "room_temp_entity": "Raumtemperatur-Sensor",
             "max_temp": "Hitzeschutz-Schwelle (°C)"
+          },
+          "data_description": {
+            "area_id": "Der Home-Assistant-Bereich, den dieser Controller verwaltet. Pro Bereich ist nur ein Controller möglich.",
+            "ruleset_id": "Das Verhaltens-Bundle (Positionen, Schwellwerte, Zeitplan) für die Fensterflächen dieses Bereichs.",
+            "day_mode": "Anfänglicher Tag-Modus. Später über den Modus-Selector des Bereichs änderbar.",
+            "heating_entity": "Climate-Entität, die im Eco-Modus gelesen wird.",
+            "target_temp": "Gewünschte Raumtemperatur im Eco-Modus.",
+            "room_temp_entity": "Sensor mit der aktuellen Raumtemperatur.",
+            "max_temp": "Oberhalb dieser Temperatur greift der Hitzeschutz."
           }
         }
       },
@@ -157,6 +273,7 @@
           "title": "Fensterfläche hinzufügen",
           "description": "Eine steuerbare Fläche: Wähle eine oder mehrere Cover-Entitäten und ihren Controller, ergänze dann den Sonnen-Trichter und den Fluchtweg-Schalter. Mehrere Cover (z. B. eine Fensterfront) teilen sich diese Konfiguration, werden aber einzeln ausgewertet.",
           "data": {
+            "name": "Name",
             "entity_ids": "Cover-Entitäten",
             "controller_id": "Controller",
             "shade_type": "Behangtyp",
@@ -178,11 +295,25 @@
             "eco_tilt": "Eco — Lamelle (%)",
             "heat_protection_position": "Hitzeschutz — Position (%)",
             "heat_protection_tilt": "Hitzeschutz — Lamelle (%)"
+          },
+          "data_description": {
+            "name": "Eine lesbare Bezeichnung dieser Fläche, die statt der Cover-Liste angezeigt wird.",
+            "entity_ids": "Eine oder mehrere Cover-Entitäten, die als eine Fläche gemeinsam gesteuert werden.",
+            "controller_id": "Der Controller (Bereich), zu dem diese Fläche gehört.",
+            "shade_type": "Hardware-Voreinstellung für Schutz und Fähigkeiten.",
+            "slat_tracking": "Lamellen mit der Sonne nachführen. Standard folgt dem Behangtyp.",
+            "azimuth_from": "Beginn des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
+            "azimuth_to": "Ende des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
+            "brightness_entity": "Optionaler fensterspezifischer Lux-Sensor statt der Schätzung.",
+            "contact_entity": "Fensterkontakt-Sensor für die Lüftungs-Sperre.",
+            "is_escape_route": "Wenn aktiv, öffnet ein Feueralarm diesen Behang vollständig.",
+            "min_movement_interval": "Fensterspezifischer Wert für das minimale Bewegungsintervall."
           }
         },
         "reconfigure": {
           "title": "Fensterfläche neu konfigurieren",
           "data": {
+            "name": "Name",
             "entity_ids": "Cover-Entitäten",
             "controller_id": "Controller",
             "shade_type": "Behangtyp",
@@ -204,6 +335,19 @@
             "eco_tilt": "Eco — Lamelle (%)",
             "heat_protection_position": "Hitzeschutz — Position (%)",
             "heat_protection_tilt": "Hitzeschutz — Lamelle (%)"
+          },
+          "data_description": {
+            "name": "Eine lesbare Bezeichnung dieser Fläche, die statt der Cover-Liste angezeigt wird.",
+            "entity_ids": "Eine oder mehrere Cover-Entitäten, die als eine Fläche gemeinsam gesteuert werden.",
+            "controller_id": "Der Controller (Bereich), zu dem diese Fläche gehört.",
+            "shade_type": "Hardware-Voreinstellung für Schutz und Fähigkeiten.",
+            "slat_tracking": "Lamellen mit der Sonne nachführen. Standard folgt dem Behangtyp.",
+            "azimuth_from": "Beginn des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
+            "azimuth_to": "Ende des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
+            "brightness_entity": "Optionaler fensterspezifischer Lux-Sensor statt der Schätzung.",
+            "contact_entity": "Fensterkontakt-Sensor für die Lüftungs-Sperre.",
+            "is_escape_route": "Wenn aktiv, öffnet ein Feueralarm diesen Behang vollständig.",
+            "min_movement_interval": "Fensterspezifischer Wert für das minimale Bewegungsintervall."
           }
         }
       },
@@ -225,6 +369,7 @@
       }
     },
     "switch": {
+      "enabled": { "name": "Automatik" },
       "lock": { "name": "Sperre" },
       "night": { "name": "Nacht" },
       "morning": { "name": "Morgen" },

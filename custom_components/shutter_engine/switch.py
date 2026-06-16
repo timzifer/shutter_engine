@@ -1,4 +1,4 @@
-"""Switch entities for per-controller control (lock, night, morning, holiday)."""
+"""Switch entities for per-controller control (enabled, lock, night, morning, holiday)."""
 
 from __future__ import annotations
 
@@ -32,6 +32,13 @@ class ControllerSwitchDescription:
 
 
 SWITCHES: tuple[ControllerSwitchDescription, ...] = (
+    ControllerSwitchDescription(
+        key="enabled",
+        translation_key="enabled",
+        control_attr="enabled",
+        icon="mdi:robot",
+        getter=lambda c: c.enabled,
+    ),
     ControllerSwitchDescription(
         key="lock",
         translation_key="lock",
