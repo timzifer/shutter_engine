@@ -12,8 +12,8 @@ def _hub() -> dict:
         "weather_entity": "weather.home",
         "wind_entity": "binary_sensor.storm",
         "frost_entity": "binary_sensor.frost",
-        "brightness_close": 40000,
-        "brightness_open": 20000,
+        "brightness_threshold": 40000,
+        "brightness_hysteresis": 20000,
         "safe_position": 0,
     }
 
@@ -22,7 +22,7 @@ def _rulesets() -> dict:
     return {
         "rs1": {
             "name": "South facade",
-            "brightness_close": 35000,
+            "brightness_threshold": 35000,
             "mode_positions": {"sun_protection": {"position": 80, "tilt": 45}},
             "night": {"enabled": True, "window_start": "20:00", "window_end": "23:00"},
         }
@@ -54,7 +54,7 @@ def _windows() -> dict:
             "brightness_entity": "sensor.lux_south",
             "contact_entity": "binary_sensor.door",
             "is_escape_route": True,
-            "brightness_close": 30000,
+            "brightness_threshold": 30000,
         }
     }
 
@@ -63,7 +63,7 @@ def test_build_engine_state_structure() -> None:
     state = build_engine_state(_hub(), _rulesets(), _controllers(), _windows())
 
     assert state.hub.sun_entity == "sun.sun"
-    assert state.hub.brightness_close == 40000
+    assert state.hub.brightness_threshold == 40000
 
     assert set(state.controllers) == {"ctrl1"}
     controller = state.controllers["ctrl1"]
@@ -90,8 +90,8 @@ def test_build_engine_state_structure() -> None:
 def test_layered_inheritance_end_to_end() -> None:
     state = build_engine_state(_hub(), _rulesets(), _controllers(), _windows())
     resolved = state.windows[0].members[0].config
-    # brightness_close: window(30000) wins over ruleset(35000) and hub(40000).
-    assert resolved.brightness_close == 30000
+    # brightness_threshold: window(30000) wins over ruleset(35000) and hub(40000).
+    assert resolved.brightness_threshold == 30000
     # safe_position only set on hub.
     assert resolved.safe_position == 0
     # mode positions come from the ruleset.
@@ -106,8 +106,8 @@ def test_missing_ruleset_falls_back_to_hub_defaults() -> None:
     windows = {"win1": {"entity_id": "cover.x", "controller_id": "ctrl1"}}
     state = build_engine_state(_hub(), {}, controllers, windows)
     resolved = state.windows[0].members[0].config
-    # No ruleset -> hub brightness_close wins, mode positions empty.
-    assert resolved.brightness_close == 40000
+    # No ruleset -> hub brightness_threshold wins, mode positions empty.
+    assert resolved.brightness_threshold == 40000
     assert resolved.mode_positions == {}
     assert state.controllers["ctrl1"].schedule.night.enabled is False
 

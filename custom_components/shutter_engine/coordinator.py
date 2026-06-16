@@ -44,7 +44,6 @@ from .engine import (
     ContactState,
     DayMode,
     Decision,
-    Hysteresis,
     ResolverInput,
     ResolverTrace,
     TemperatureHysteresis,
@@ -84,7 +83,7 @@ _RUNTIME_FIELD_KEYS = frozenset(
 class CoverRuntime:
     """Transient per-cover state owned by the coordinator."""
 
-    brightness_hysteresis: Hysteresis
+    brightness_hysteresis: TemperatureHysteresis
     irradiance_hysteresis: TemperatureHysteresis
     expected_position: int | None = None
     expected_until: datetime | None = None
@@ -304,9 +303,9 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             for member in node.members:
                 saved = saved_surface if legacy else saved_surface.get(member.entity_id, {})
                 member.runtime = CoverRuntime(
-                    brightness_hysteresis=Hysteresis(
-                        high=member.config.brightness_close,
-                        low=member.config.brightness_open,
+                    brightness_hysteresis=TemperatureHysteresis(
+                        set_point=member.config.brightness_threshold,
+                        hysteresis=member.config.brightness_hysteresis,
                         active=bool(saved.get("brightness_active", False)),
                     ),
                     irradiance_hysteresis=TemperatureHysteresis(

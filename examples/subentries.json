@@ -3,8 +3,10 @@
 
   "ruleset": {
     "name": "South facade",
-    "brightness_close": 40000,
-    "brightness_open": 20000,
+    "brightness_threshold": 40000,
+    "brightness_hysteresis": 20000,
+    "irradiance_threshold": 300,
+    "irradiance_hysteresis": 100,
     "temp_hysteresis": 0.5,
     "safe_position": 0,
     "ventilation_position": 10,

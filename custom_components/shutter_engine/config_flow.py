@@ -340,8 +340,8 @@ def _ruleset_data(user_input: dict[str, Any]) -> dict[str, Any]:
         user_input,
         entity_keys=("schedule_id", "weekend_schedule_id"),
         float_keys=(
-            "brightness_close",
-            "brightness_open",
+            "brightness_threshold",
+            "brightness_hysteresis",
             "irradiance_threshold",
             "irradiance_hysteresis",
             "temp_hysteresis",
@@ -446,8 +446,8 @@ def _ruleset_schema(
     }
     fields.update(_mode_position_fields(defaults))
     for key, selector in (
-        ("brightness_close", _number(minimum=0, step=1000)),
-        ("brightness_open", _number(minimum=0, step=1000)),
+        ("brightness_threshold", _number(minimum=0, step=1000)),
+        ("brightness_hysteresis", _number(minimum=0, step=1000)),
         ("irradiance_threshold", _number(minimum=0, maximum=1500, step=10)),
         ("irradiance_hysteresis", _number(minimum=0, maximum=500, step=10)),
         ("temp_hysteresis", _number(minimum=0, maximum=10, step=0.1)),

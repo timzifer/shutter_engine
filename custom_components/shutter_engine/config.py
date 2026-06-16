@@ -31,8 +31,8 @@ from .engine.models import resolve_window
 _INHERITABLE_KEYS = (
     "safe_position",
     "ventilation_position",
-    "brightness_close",
-    "brightness_open",
+    "brightness_threshold",
+    "brightness_hysteresis",
     "irradiance_threshold",
     "irradiance_hysteresis",
     "temp_hysteresis",

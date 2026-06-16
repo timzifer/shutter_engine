@@ -11,7 +11,8 @@
           "wind_entity": "Wind-/Sturm-Sensor",
           "frost_entity": "Frost-Sensor",
           "fire_entity": "Feuer-/Rauch-Sensor",
-          "burglary_entity": "Einbruch-/Sicherheitssensor"
+          "burglary_entity": "Einbruch-/Sicherheitssensor",
+          "irradiance_entity": "Globalstrahlungs-Sensor (W/m²)"
         },
         "data_description": {
           "sun_entity": "Die Entität der Sonnen-Integration. Liefert Azimut und Elevation für Nachführung und Zeitfenster.",
@@ -20,7 +21,8 @@
           "wind_entity": "Binärsensor, der bei Sturm „an“ ist. Fährt teilnehmende Behänge in die Sicherheitsposition.",
           "frost_entity": "Binärsensor, der bei Frost „an“ ist. Blockiert die Bewegung gefährdeter Behänge.",
           "fire_entity": "Binärsensor, der bei Feuer/Rauch „an“ ist. Öffnet als Fluchtweg markierte Behänge.",
-          "burglary_entity": "Binärsensor, der bei einem Sicherheitsalarm „an“ ist."
+          “burglary_entity”: “Binärsensor, der bei einem Sicherheitsalarm „an” ist.”,
+          “irradiance_entity”: “Sensor für die Globalstrahlung in W/m². Alternative zur Helligkeit (Lux) für die Beschattungsentscheidung.”
         }
       }
     },
@@ -40,7 +42,8 @@
           "wind_entity": "Wind-/Sturm-Sensor",
           "frost_entity": "Frost-Sensor",
           "fire_entity": "Feuer-/Rauch-Sensor",
-          "burglary_entity": "Einbruch-/Sicherheitssensor"
+          "burglary_entity": "Einbruch-/Sicherheitssensor",
+          "irradiance_entity": "Globalstrahlungs-Sensor (W/m²)"
         },
         "data_description": {
           "sun_entity": "Die Entität der Sonnen-Integration. Liefert Azimut und Elevation für Nachführung und Zeitfenster.",
@@ -49,7 +52,8 @@
           "wind_entity": "Binärsensor, der bei Sturm „an“ ist. Fährt teilnehmende Behänge in die Sicherheitsposition.",
           "frost_entity": "Binärsensor, der bei Frost „an“ ist. Blockiert die Bewegung gefährdeter Behänge.",
           "fire_entity": "Binärsensor, der bei Feuer/Rauch „an“ ist. Öffnet als Fluchtweg markierte Behänge.",
-          "burglary_entity": "Binärsensor, der bei einem Sicherheitsalarm „an“ ist."
+          “burglary_entity”: “Binärsensor, der bei einem Sicherheitsalarm „an” ist.”,
+          “irradiance_entity”: “Sensor für die Globalstrahlung in W/m². Alternative zur Helligkeit (Lux) für die Beschattungsentscheidung.”
         }
       }
     }
@@ -140,8 +144,10 @@
             "eco_tilt": "Eco — Lamelle (%)",
             "heat_protection_position": "Hitzeschutz — Position (%)",
             "heat_protection_tilt": "Hitzeschutz — Lamelle (%)",
-            "brightness_close": "Schließen ab Helligkeit (Lux)",
-            "brightness_open": "Öffnen unter Helligkeit (Lux)",
+            "brightness_threshold": "Helligkeits-Schwellwert (Lux)",
+            "brightness_hysteresis": "Helligkeits-Hysterese (Lux)",
+            "irradiance_threshold": "Globalstrahlungs-Schwellwert (W/m²)",
+            "irradiance_hysteresis": "Globalstrahlungs-Hysterese (W/m²)",
             "temp_hysteresis": "Temperatur-Hysterese (°C)",
             "safe_position": "Sturm-Sicherheitsposition (%)",
             "ventilation_position": "Lüftungsposition (%)",
@@ -155,8 +161,10 @@
           },
           "data_description": {
             "sun_protection_position": "Zielposition im Sonnenschutz-Modus (0 geschlossen, 100 offen).",
-            "brightness_close": "Oberhalb dieser Helligkeit beginnt die Beschattung.",
-            "brightness_open": "Unterhalb dieser Helligkeit wird wieder geöffnet.",
+            "brightness_threshold": "Oberhalb dieser Helligkeit beginnt die Beschattung.",
+            "brightness_hysteresis": "Schalt-Totband unterhalb des Helligkeits-Schwellwerts, bevor wieder geöffnet wird.",
+            "irradiance_threshold": "Oberhalb dieser Globalstrahlung beginnt die Beschattung.",
+            "irradiance_hysteresis": "Schalt-Totband unterhalb des Globalstrahlungs-Schwellwerts, bevor wieder geöffnet wird.",
             "temp_hysteresis": "Schalt-Totband um die Eco-/Hitze-Temperaturschwellen.",
             "safe_position": "Position, in die Behänge bei Sturm fahren.",
             "ventilation_position": "Position bei gekipptem Fenster (Lüftung).",
@@ -176,8 +184,10 @@
             "eco_tilt": "Eco — Lamelle (%)",
             "heat_protection_position": "Hitzeschutz — Position (%)",
             "heat_protection_tilt": "Hitzeschutz — Lamelle (%)",
-            "brightness_close": "Schließen ab Helligkeit (Lux)",
-            "brightness_open": "Öffnen unter Helligkeit (Lux)",
+            "brightness_threshold": "Helligkeits-Schwellwert (Lux)",
+            "brightness_hysteresis": "Helligkeits-Hysterese (Lux)",
+            "irradiance_threshold": "Globalstrahlungs-Schwellwert (W/m²)",
+            "irradiance_hysteresis": "Globalstrahlungs-Hysterese (W/m²)",
             "temp_hysteresis": "Temperatur-Hysterese (°C)",
             "safe_position": "Sturm-Sicherheitsposition (%)",
             "ventilation_position": "Lüftungsposition (%)",
@@ -191,8 +201,10 @@
           },
           "data_description": {
             "sun_protection_position": "Zielposition im Sonnenschutz-Modus (0 geschlossen, 100 offen).",
-            "brightness_close": "Oberhalb dieser Helligkeit beginnt die Beschattung.",
-            "brightness_open": "Unterhalb dieser Helligkeit wird wieder geöffnet.",
+            "brightness_threshold": "Oberhalb dieser Helligkeit beginnt die Beschattung.",
+            "brightness_hysteresis": "Schalt-Totband unterhalb des Helligkeits-Schwellwerts, bevor wieder geöffnet wird.",
+            "irradiance_threshold": "Oberhalb dieser Globalstrahlung beginnt die Beschattung.",
+            "irradiance_hysteresis": "Schalt-Totband unterhalb des Globalstrahlungs-Schwellwerts, bevor wieder geöffnet wird.",
             "temp_hysteresis": "Schalt-Totband um die Eco-/Hitze-Temperaturschwellen.",
             "safe_position": "Position, in die Behänge bei Sturm fahren.",
             "ventilation_position": "Position bei gekipptem Fenster (Lüftung).",
@@ -283,6 +295,7 @@
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
             "brightness_entity": "Helligkeits-Sensor (Lux)",
+            "irradiance_entity": "Globalstrahlungs-Sensor (W/m²)",
             "contact_entity": "Fensterkontakt-Sensor",
             "is_escape_route": "Fluchtweg (Feuer öffnet ihn)",
             "safe_position": "Sturm-Sicherheitsposition (%)",
@@ -305,6 +318,7 @@
             "azimuth_from": "Beginn des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
             "azimuth_to": "Ende des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
             "brightness_entity": "Optionaler fensterspezifischer Lux-Sensor statt der Schätzung.",
+            "irradiance_entity": "Optionaler fensterspezifischer Globalstrahlungs-Sensor statt des globalen.",
             "contact_entity": "Fensterkontakt-Sensor für die Lüftungs-Sperre.",
             "is_escape_route": "Wenn aktiv, öffnet ein Feueralarm diesen Behang vollständig.",
             "min_movement_interval": "Fensterspezifischer Wert für das minimale Bewegungsintervall."
@@ -323,6 +337,7 @@
             "elevation_min": "Elevation min (°)",
             "elevation_max": "Elevation max (°)",
             "brightness_entity": "Helligkeits-Sensor (Lux)",
+            "irradiance_entity": "Globalstrahlungs-Sensor (W/m²)",
             "contact_entity": "Fensterkontakt-Sensor",
             "is_escape_route": "Fluchtweg (Feuer öffnet ihn)",
             "safe_position": "Sturm-Sicherheitsposition (%)",
@@ -345,6 +360,7 @@
             "azimuth_from": "Beginn des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
             "azimuth_to": "Ende des Sonnen-Azimutbereichs, der dieses Fenster trifft.",
             "brightness_entity": "Optionaler fensterspezifischer Lux-Sensor statt der Schätzung.",
+            "irradiance_entity": "Optionaler fensterspezifischer Globalstrahlungs-Sensor statt des globalen.",
             "contact_entity": "Fensterkontakt-Sensor für die Lüftungs-Sperre.",
             "is_escape_route": "Wenn aktiv, öffnet ein Feueralarm diesen Behang vollständig.",
             "min_movement_interval": "Fensterspezifischer Wert für das minimale Bewegungsintervall."
