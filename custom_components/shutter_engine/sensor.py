@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN
+from .engine.const import DecisionReason
 from .entity import (
     ShutterEngineControllerEntity,
     ShutterEngineWindowEntity,
@@ -19,7 +20,9 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .coordinator import ShutterEngineCoordinator
+    from .coordinator import CoverMemberResult, ShutterEngineCoordinator
+
+_DECISION_REASON_OPTIONS: list[str] = [r.value for r in DecisionReason]
 
 
 async def async_setup_entry(
@@ -39,6 +42,8 @@ async def async_setup_entry(
                 [
                     ControllerStatusSensor(coordinator, subentry_id, display),
                     ControllerDebugSensor(coordinator, subentry_id, display),
+                    ControllerReasonSensor(coordinator, subentry_id, display),
+                    ControllerTraceSensor(coordinator, subentry_id, display),
                 ],
                 config_subentry_id=subentry_id,
             )
@@ -121,6 +126,98 @@ class ControllerDebugSensor(ShutterEngineControllerEntity, SensorEntity):
                 if trace.fire_bypassed_constraints:
                     detail += ", fire_bypass"
                 attrs[member.entity_id] = detail
+        return attrs
+
+
+class ControllerReasonSensor(ShutterEngineControllerEntity, SensorEntity):
+    """Enum sensor exposing the primary decision reason of this controller."""
+
+    _attr_translation_key = "reason"
+    _attr_icon = "mdi:list-status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = _DECISION_REASON_OPTIONS
+
+    def __init__(
+        self, coordinator: ShutterEngineCoordinator, controller_id: str, display_name: str
+    ) -> None:
+        super().__init__(coordinator, controller_id, display_name)
+        self._attr_unique_id = f"{self._unique_prefix}_reason"
+
+    def _all_members(self) -> list[CoverMemberResult]:
+        return [
+            member
+            for result in self.coordinator.cover_results_for_controller(self._controller_id)
+            for member in result.members
+        ]
+
+    @property
+    def native_value(self) -> str | None:
+        members = self._all_members()
+        if not members:
+            return DecisionReason.HOLD.value
+        return members[0].decision.reason.value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        return {
+            member.entity_id: member.decision.reason.value
+            for member in self._all_members()
+        }
+
+
+class ControllerTraceSensor(ShutterEngineControllerEntity, SensorEntity):
+    """Structured trace sensor with individual driver and constraint results."""
+
+    _attr_translation_key = "trace"
+    _attr_icon = "mdi:file-tree"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self, coordinator: ShutterEngineCoordinator, controller_id: str, display_name: str
+    ) -> None:
+        super().__init__(coordinator, controller_id, display_name)
+        self._attr_unique_id = f"{self._unique_prefix}_trace"
+
+    def _all_members(self) -> list[CoverMemberResult]:
+        return [
+            member
+            for result in self.coordinator.cover_results_for_controller(self._controller_id)
+            for member in result.members
+        ]
+
+    @property
+    def native_value(self) -> str:
+        members = self._all_members()
+        if not members:
+            return "idle"
+        trace = members[0].trace
+        return trace.selected_driver
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        members = self._all_members()
+        if not members:
+            return {}
+
+        attrs: dict[str, Any] = {}
+        for member in members:
+            trace = member.trace
+            decision = member.decision
+            drivers = {d.name: d.matched for d in trace.drivers}
+            constraints = {
+                c.name: {"applied": c.applied, "effect": c.effect}
+                for c in trace.constraints
+            }
+            attrs[member.entity_id] = {
+                "selected_driver": trace.selected_driver,
+                "reason": trace.final_reason.value,
+                "position": decision.position,
+                "tilt": decision.tilt,
+                "blocked": decision.blocked,
+                "fire_bypass": trace.fire_bypassed_constraints,
+                "drivers": drivers,
+                "constraints": constraints,
+            }
         return attrs
 
 

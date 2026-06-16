@@ -357,6 +357,10 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "active": { "name": "Aktiv" },
+      "blocked": { "name": "Blockiert" }
+    },
     "select": {
       "mode": {
         "name": "Modus",
@@ -377,7 +381,9 @@
     },
     "sensor": {
       "status": { "name": "Status" },
-      "debug": { "name": "Debug" }
+      "debug": { "name": "Debug" },
+      "reason": { "name": "Grund" },
+      "trace": { "name": "Trace" }
     }
   }
 }
