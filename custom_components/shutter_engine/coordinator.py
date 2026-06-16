@@ -85,7 +85,7 @@ class CoverRuntime:
     """Transient per-cover state owned by the coordinator."""
 
     brightness_hysteresis: Hysteresis
-    irradiance_hysteresis: Hysteresis
+    irradiance_hysteresis: TemperatureHysteresis
     expected_position: int | None = None
     expected_until: datetime | None = None
     last_command_at: datetime | None = None
@@ -309,9 +309,9 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                         low=member.config.brightness_open,
                         active=bool(saved.get("brightness_active", False)),
                     ),
-                    irradiance_hysteresis=Hysteresis(
-                        high=member.config.irradiance_close,
-                        low=member.config.irradiance_open,
+                    irradiance_hysteresis=TemperatureHysteresis(
+                        set_point=member.config.irradiance_threshold,
+                        hysteresis=member.config.irradiance_hysteresis,
                         active=bool(saved.get("irradiance_active", False)),
                     ),
                     last_command_at=_parse_iso(saved.get("last_command_at")),

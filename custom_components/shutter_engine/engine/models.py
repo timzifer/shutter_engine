@@ -97,8 +97,8 @@ _INHERITABLE_FIELDS: tuple[str, ...] = (
     "ventilation_position",
     "brightness_close",
     "brightness_open",
-    "irradiance_close",
-    "irradiance_open",
+    "irradiance_threshold",
+    "irradiance_hysteresis",
     "temp_hysteresis",
     "azimuth_center",
     "azimuth_width",
@@ -119,8 +119,8 @@ class _InheritableDefaults:
     ventilation_position: int | None = None
     brightness_close: float | None = None
     brightness_open: float | None = None
-    irradiance_close: float | None = None
-    irradiance_open: float | None = None
+    irradiance_threshold: float | None = None
+    irradiance_hysteresis: float | None = None
     temp_hysteresis: float | None = None
     azimuth_center: float | None = None
     azimuth_width: float | None = None
@@ -272,8 +272,8 @@ class ResolvedCoverConfig:
     ventilation_position: int
     brightness_close: float
     brightness_open: float
-    irradiance_close: float
-    irradiance_open: float
+    irradiance_threshold: float
+    irradiance_hysteresis: float
     temp_hysteresis: float
     azimuth_center: float | None
     azimuth_width: float | None
@@ -293,8 +293,8 @@ _HARD_DEFAULTS: dict[str, object] = {
     "ventilation_position": 10,
     "brightness_close": 40000.0,
     "brightness_open": 20000.0,
-    "irradiance_close": 300.0,
-    "irradiance_open": 150.0,
+    "irradiance_threshold": 300.0,
+    "irradiance_hysteresis": 100.0,
     "temp_hysteresis": 0.5,
     "azimuth_center": None,
     "azimuth_width": None,

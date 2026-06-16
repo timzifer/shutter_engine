@@ -342,8 +342,8 @@ def _ruleset_data(user_input: dict[str, Any]) -> dict[str, Any]:
         float_keys=(
             "brightness_close",
             "brightness_open",
-            "irradiance_close",
-            "irradiance_open",
+            "irradiance_threshold",
+            "irradiance_hysteresis",
             "temp_hysteresis",
             "sun_tracking_deadband",
             "min_movement_interval",
@@ -448,8 +448,8 @@ def _ruleset_schema(
     for key, selector in (
         ("brightness_close", _number(minimum=0, step=1000)),
         ("brightness_open", _number(minimum=0, step=1000)),
-        ("irradiance_close", _number(minimum=0, maximum=1500, step=10)),
-        ("irradiance_open", _number(minimum=0, maximum=1500, step=10)),
+        ("irradiance_threshold", _number(minimum=0, maximum=1500, step=10)),
+        ("irradiance_hysteresis", _number(minimum=0, maximum=500, step=10)),
         ("temp_hysteresis", _number(minimum=0, maximum=10, step=0.1)),
         ("safe_position", _number(minimum=0, maximum=100, step=1)),
         ("ventilation_position", _number(minimum=0, maximum=100, step=1)),
