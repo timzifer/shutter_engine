@@ -11,6 +11,7 @@ The configuration is assembled from the config entry's *subentries*
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 from dataclasses import dataclass, field
@@ -46,12 +47,14 @@ from .engine import (
     Decision,
     ResolverInput,
     ResolverTrace,
+    SlatMode,
     TemperatureHysteresis,
     estimate_brightness,
     in_sun_funnel,
     resolve_time_window,
     resolve_trace,
     slat_tilt_for_elevation,
+    slat_tilt_physical,
 )
 from .engine.models import ResolvedCoverConfig
 
@@ -64,9 +67,10 @@ _LOGGER = logging.getLogger(__name__)
 
 # Tolerance for accepting our own movement as "cleanly executed" (concept §8).
 _POSITION_TOLERANCE = 5  # percent
-_EXECUTION_WINDOW = timedelta(minutes=3)
 # Default duration a cover stays paused after a detected manual intervention.
 _DEFAULT_PAUSE = timedelta(hours=2)
+# Debounce interval for coalescing rapid persistence writes.
+_PERSIST_DEBOUNCE_SECONDS = 2.0
 
 # Persisted-state key holding the per-controller runtime toggles.
 _CONTROLLERS_KEY = "__controllers__"
@@ -211,6 +215,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         #: Runtime toggles keyed by *controller subentry id*.
         self._controller_controls: dict[str, ControllerControls] = {}
         self._unsub: list = []
+        self._persist_task: asyncio.TimerHandle | None = None
         self._reload_config()
 
     # -- setup -------------------------------------------------------------
@@ -361,6 +366,9 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         for unsub in self._unsub:
             unsub()
         self._unsub.clear()
+        if self._persist_task is not None:
+            self._persist_task.cancel()
+            self._persist_task = None
         await self._persist()
 
     # -- triggers ----------------------------------------------------------
@@ -406,6 +414,9 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             runtime.expected_until = None
             return
 
+        if new_state.state in ("opening", "closing"):
+            return
+
         # External change -> pause automation for this cover.
         runtime.paused_until = now + _DEFAULT_PAUSE
         _LOGGER.debug("Manual intervention detected on %s, pausing", member.entity_id)
@@ -435,7 +446,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                 controller_id=node.controller_id,
                 members=member_results,
             )
-        await self._persist()
+        self._schedule_persist()
         return results
 
     def _resolve_cover(
@@ -494,6 +505,12 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         if attrs is None:
             return None
         _, elevation = attrs
+        if cfg.slat_mode == SlatMode.PHYSICAL and cfg.slat_depth_mm and cfg.slat_distance_mm:
+            return slat_tilt_physical(
+                elevation,
+                slat_depth_mm=cfg.slat_depth_mm,
+                slat_distance_mm=cfg.slat_distance_mm,
+            )
         elevation_low = cfg.elevation_min if cfg.elevation_min is not None else 0.0
         elevation_high = cfg.elevation_max if cfg.elevation_max is not None else 90.0
         return slat_tilt_for_elevation(
@@ -776,7 +793,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         runtime.last_command_at = now
         runtime.last_target = decision.position
         runtime.expected_position = decision.position
-        runtime.expected_until = now + _EXECUTION_WINDOW
+        runtime.expected_until = now + timedelta(seconds=cfg.motor_travel_time)
 
     # -- diagnostics & persistence ----------------------------------------
 
@@ -801,6 +818,19 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             for controller_id, controls in self._controller_controls.items()
         }
         await self._store.async_save(data)
+
+    @callback
+    def _schedule_persist(self) -> None:
+        if self._persist_task is not None:
+            self._persist_task.cancel()
+        self._persist_task = self.hass.loop.call_later(
+            _PERSIST_DEBOUNCE_SECONDS,
+            lambda: self.hass.async_create_task(self._do_persist()),
+        )
+
+    async def _do_persist(self) -> None:
+        self._persist_task = None
+        await self._persist()
 
     # -- controller / window API (used by the entities) --------------------
 
@@ -835,5 +865,13 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         controls = self._controller_controls[controller_id]
         for key, value in changes.items():
             setattr(controls, key, value)
-        await self._persist()
+
+        if "day_mode" in changes:
+            for node in self._windows.values():
+                if node.controller_id == controller_id:
+                    for member in node.members:
+                        member.runtime.brightness_hysteresis.active = False
+                        member.runtime.irradiance_hysteresis.active = False
+
+        self._schedule_persist()
         await self.async_request_refresh()

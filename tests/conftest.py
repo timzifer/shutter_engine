@@ -11,6 +11,7 @@ from custom_components.shutter_engine.engine import (
     ProtectionFlags,
     ResolvedCoverConfig,
     ShadeType,
+    SlatMode,
 )
 
 
@@ -33,6 +34,9 @@ def make_cover_config(**overrides) -> ResolvedCoverConfig:
             DayMode.HEAT_PROTECTION: ModePosition(position=0, tilt=0),
         },
         "is_escape_route": True,
+        "slat_mode": SlatMode.LINEAR,
+        "slat_depth_mm": None,
+        "slat_distance_mm": None,
         "safe_position": 0,
         "ventilation_position": 10,
         "brightness_threshold": 40000.0,
@@ -49,6 +53,7 @@ def make_cover_config(**overrides) -> ResolvedCoverConfig:
         "delay_close": 0.0,
         "delay_open": 0.0,
         "min_movement_interval": 0.0,
+        "motor_travel_time": 180.0,
         "sun_tracking_deadband": 5.0,
     }
     defaults.update(overrides)

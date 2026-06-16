@@ -54,7 +54,7 @@ from .const import (
     SUBENTRY_SCHEDULE,
     SUBENTRY_WINDOW,
 )
-from .engine import DayMode, ShadeType
+from .engine import DayMode, ShadeType, SlatMode
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import SubentryFlowResult
@@ -405,6 +405,13 @@ def _window_data(user_input: dict[str, Any]) -> dict[str, Any]:
     tracking = user_input.get("slat_tracking", _TRACKING_DEFAULT)
     if tracking != _TRACKING_DEFAULT:
         data["slat_tracking"] = tracking == _TRACKING_ON
+    slat_mode = user_input.get("slat_mode")
+    if slat_mode:
+        data["slat_mode"] = slat_mode
+    for slat_key in ("slat_depth_mm", "slat_distance_mm"):
+        val = user_input.get(slat_key)
+        if val is not None and val != 0:
+            data[slat_key] = float(val)
     _update_optional(
         data,
         user_input,
@@ -416,6 +423,7 @@ def _window_data(user_input: dict[str, Any]) -> dict[str, Any]:
             "elevation_max",
             "sun_tracking_deadband",
             "min_movement_interval",
+            "motor_travel_time",
         ),
         int_keys=("safe_position", "ventilation_position"),
     )
@@ -557,6 +565,16 @@ def _window_schema(
         **_dict(_opt("ventilation_position", defaults, _number(minimum=0, maximum=100, step=1))),
         **_dict(_opt("sun_tracking_deadband", defaults, _number(minimum=0, maximum=45, step=1))),
         **_dict(_opt("min_movement_interval", defaults, _number(minimum=0, maximum=3600, step=10))),
+        **_dict(_opt("motor_travel_time", defaults, _number(minimum=0, maximum=600, step=1))),
+        **_dict(
+            _opt(
+                "slat_mode",
+                defaults,
+                _select(tuple(m.value for m in SlatMode)),
+            )
+        ),
+        **_dict(_opt("slat_depth_mm", defaults, _number(minimum=1, maximum=200, step=1))),
+        **_dict(_opt("slat_distance_mm", defaults, _number(minimum=1, maximum=200, step=1))),
     }
     fields.update(_mode_position_fields(defaults))
     return vol.Schema(fields)

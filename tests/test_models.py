@@ -124,3 +124,49 @@ def test_mode_positions_from_ruleset_overridden_per_window() -> None:
     # Window overrides the sun-protection target, eco falls back to the ruleset.
     assert resolved.mode_positions[DayMode.SUN_PROTECTION] == ModePosition(position=60, tilt=30)
     assert resolved.mode_positions[DayMode.ECO] == ModePosition(position=70)
+
+
+def test_motor_travel_time_inherits_and_defaults() -> None:
+    resolved = resolve_window(
+        WindowConfig(entity_id="cover.x"),
+        ControllerConfig(),
+        RulesetConfig(),
+        HubConfig(),
+    )
+    assert resolved.motor_travel_time == 180.0
+
+
+def test_motor_travel_time_deepest_wins() -> None:
+    hub = HubConfig(motor_travel_time=120.0)
+    window = WindowConfig(entity_id="cover.x", motor_travel_time=300.0)
+    resolved = resolve_window(window, ControllerConfig(), RulesetConfig(), hub)
+    assert resolved.motor_travel_time == 300.0
+
+
+def test_slat_mode_defaults_to_linear() -> None:
+    from custom_components.shutter_engine.engine import SlatMode
+
+    resolved = resolve_window(
+        WindowConfig(entity_id="cover.x"),
+        ControllerConfig(),
+        RulesetConfig(),
+        HubConfig(),
+    )
+    assert resolved.slat_mode == SlatMode.LINEAR
+    assert resolved.slat_depth_mm is None
+    assert resolved.slat_distance_mm is None
+
+
+def test_slat_mode_physical_passes_through() -> None:
+    from custom_components.shutter_engine.engine import SlatMode
+
+    window = WindowConfig(
+        entity_id="cover.x",
+        slat_mode=SlatMode.PHYSICAL,
+        slat_depth_mm=80.0,
+        slat_distance_mm=60.0,
+    )
+    resolved = resolve_window(window, ControllerConfig(), RulesetConfig(), HubConfig())
+    assert resolved.slat_mode == SlatMode.PHYSICAL
+    assert resolved.slat_depth_mm == 80.0
+    assert resolved.slat_distance_mm == 60.0

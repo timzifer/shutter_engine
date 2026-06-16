@@ -59,6 +59,13 @@ class DecisionReason(StrEnum):
     MIN_INTERVAL_BLOCK = "min_interval_block"
 
 
+class SlatMode(StrEnum):
+    """Slat tilt calculation mode for venetian blinds."""
+
+    LINEAR = "linear"
+    PHYSICAL = "physical"
+
+
 class ContactState(StrEnum):
     """State of a window contact sensor used for lock-out protection."""
 
