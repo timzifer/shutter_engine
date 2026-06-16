@@ -45,11 +45,12 @@ from .engine import (
     Decision,
     Hysteresis,
     ResolverInput,
+    ResolverTrace,
     TemperatureHysteresis,
     estimate_brightness,
     in_sun_funnel,
-    resolve,
     resolve_time_window,
+    resolve_trace,
     slat_tilt_for_elevation,
 )
 from .engine.models import ResolvedCoverConfig
@@ -69,6 +70,13 @@ _DEFAULT_PAUSE = timedelta(hours=2)
 
 # Persisted-state key holding the per-controller runtime toggles.
 _CONTROLLERS_KEY = "__controllers__"
+
+# Field names of a persisted per-cover runtime record. Used to detect the
+# legacy single-cover storage layout (runtime fields stored directly under the
+# subentry id) versus the multi-cover layout (nested under each cover entity id).
+_RUNTIME_FIELD_KEYS = frozenset(
+    {"brightness_active", "last_command_at", "last_target", "paused_until"}
+)
 
 
 @dataclass
@@ -99,13 +107,33 @@ def _parse_iso(value: str | None) -> datetime | None:
     return dt_util.parse_datetime(value) if value else None
 
 
+def _is_legacy_runtime_record(record: Any) -> bool:
+    """Return ``True`` for a pre-multi-cover runtime record.
+
+    The legacy layout stored the runtime fields directly under the subentry id;
+    the multi-cover layout nests them under each cover ``entity_id``.
+    """
+
+    return isinstance(record, dict) and bool(_RUNTIME_FIELD_KEYS.intersection(record))
+
+
 @dataclass
-class CoverResult:
-    """Resolved decision plus the diagnostic context for one cover."""
+class CoverMemberResult:
+    """Resolved decision plus diagnostic context for one cover of a surface."""
 
     entity_id: str
     decision: Decision
     status_text: str
+    trace: ResolverTrace
+
+
+@dataclass
+class CoverResult:
+    """Per-surface aggregate of the resolved decisions of all its covers."""
+
+    subentry_id: str
+    controller_id: str
+    members: list[CoverMemberResult]
 
 
 @dataclass
@@ -134,17 +162,26 @@ class ControllerControls:
 
 
 @dataclass
-class _CoverNode:
-    """A window cover together with its resolved config and parent controller."""
+class _CoverMember:
+    """One cover actor of a surface with its resolved config and runtime."""
 
+    entity_id: str
     config: ResolvedCoverConfig
+    runtime: CoverRuntime = field(default=None)  # type: ignore[assignment]
+
+
+@dataclass
+class _WindowNode:
+    """A window surface: shared config plus one-or-more cover members."""
+
+    subentry_id: str
     controller_id: str
     controller: ControllerConfig
     night: TimeFunction
     morning: TimeFunction
     brightness_entity: str | None
     contact_entity: str | None
-    runtime: CoverRuntime = field(default=None)  # type: ignore[assignment]
+    members: list[_CoverMember]
 
 
 class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
@@ -161,10 +198,10 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self.hub: HubConfig
         self.controllers: dict[str, ControllerNode] = {}
-        #: Window covers keyed by their *window subentry id*.
-        self._covers: dict[str, _CoverNode] = {}
-        #: Reverse index from the driven cover ``entity_id`` to its node.
-        self._node_by_cover_entity: dict[str, _CoverNode] = {}
+        #: Window surfaces keyed by their *window subentry id*.
+        self._windows: dict[str, _WindowNode] = {}
+        #: Reverse index from a driven cover ``entity_id`` to its (surface, member).
+        self._member_by_cover_entity: dict[str, tuple[_WindowNode, _CoverMember]] = {}
         #: Runtime toggles keyed by *controller subentry id*.
         self._controller_controls: dict[str, ControllerControls] = {}
         self._unsub: list = []
@@ -203,20 +240,31 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                 ),
             )
 
-        self._covers = {}
-        self._node_by_cover_entity = {}
+        self._windows = {}
+        self._member_by_cover_entity = {}
         for window in state.windows:
-            node = _CoverNode(
-                config=window.config,
+            members = [
+                _CoverMember(entity_id=member.entity_id, config=member.config)
+                for member in window.members
+            ]
+            node = _WindowNode(
+                subentry_id=window.subentry_id,
                 controller_id=window.controller_id,
                 controller=window.controller,
                 night=window.night,
                 morning=window.morning,
                 brightness_entity=window.brightness_entity,
                 contact_entity=window.contact_entity,
+                members=members,
             )
-            self._covers[window.subentry_id] = node
-            self._node_by_cover_entity[window.config.entity_id] = node
+            self._windows[window.subentry_id] = node
+            for member in members:
+                if member.entity_id in self._member_by_cover_entity:
+                    _LOGGER.debug(
+                        "Cover %s is referenced by more than one surface; last wins",
+                        member.entity_id,
+                    )
+                self._member_by_cover_entity[member.entity_id] = (node, member)
 
     async def async_initialize(self) -> None:
         """Restore persisted state and subscribe to triggers."""
@@ -233,19 +281,24 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                     saved.get("morning_enabled", controls.morning_enabled)
                 )
                 controls.holiday = bool(saved.get("holiday", controls.holiday))
-        for subentry_id, node in self._covers.items():
-            saved = stored.get(subentry_id, {})
-            node.runtime = CoverRuntime(
-                brightness_hysteresis=Hysteresis(
-                    high=node.config.brightness_close,
-                    low=node.config.brightness_open,
-                    active=bool(saved.get("brightness_active", False)),
-                ),
-                last_command_at=_parse_iso(saved.get("last_command_at")),
-                last_target=saved.get("last_target"),
-                # paused flags are re-evaluated, never blindly restored (§8).
-                paused_until=None,
-            )
+        for subentry_id, node in self._windows.items():
+            saved_surface = stored.get(subentry_id, {})
+            # Old single-cover layout stored the runtime fields directly under
+            # the subentry id; the new layout nests them per cover entity id.
+            legacy = _is_legacy_runtime_record(saved_surface)
+            for member in node.members:
+                saved = saved_surface if legacy else saved_surface.get(member.entity_id, {})
+                member.runtime = CoverRuntime(
+                    brightness_hysteresis=Hysteresis(
+                        high=member.config.brightness_close,
+                        low=member.config.brightness_open,
+                        active=bool(saved.get("brightness_active", False)),
+                    ),
+                    last_command_at=_parse_iso(saved.get("last_command_at")),
+                    last_target=saved.get("last_target"),
+                    # paused flags are re-evaluated, never blindly restored (§8).
+                    paused_until=None,
+                )
         self._subscribe()
 
     def _subscribe(self) -> None:
@@ -261,7 +314,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         )
 
     def _tracked_entities(self) -> set[str]:
-        tracked: set[str] = {node.config.entity_id for node in self._covers.values()}
+        tracked: set[str] = set(self._member_by_cover_entity)
         for entity in (
             self.hub.sun_entity,
             self.hub.weather_entity,
@@ -273,7 +326,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         ):
             if entity:
                 tracked.add(entity)
-        for node in self._covers.values():
+        for node in self._windows.values():
             for entity in (
                 node.brightness_entity,
                 node.contact_entity,
@@ -299,14 +352,15 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
     @callback
     def _handle_state_change(self, event) -> None:
         entity_id = event.data.get("entity_id")
-        node = self._node_by_cover_entity.get(entity_id)
-        if node is not None:
-            self._detect_manual_intervention(node, event.data.get("new_state"))
+        found = self._member_by_cover_entity.get(entity_id)
+        if found is not None:
+            _node, member = found
+            self._detect_manual_intervention(member, event.data.get("new_state"))
         self.hass.async_create_task(self.async_request_refresh())
 
     # -- manual intervention detection (§8) --------------------------------
 
-    def _detect_manual_intervention(self, node: _CoverNode, new_state: State | None) -> None:
+    def _detect_manual_intervention(self, member: _CoverMember, new_state: State | None) -> None:
         """Flag a cover as paused when an external change is detected.
 
         Our own commands are tolerated within a position and time window; any
@@ -318,7 +372,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         position = new_state.attributes.get(ATTR_POSITION)
         if position is None:
             return
-        runtime = node.runtime
+        runtime = member.runtime
         now = dt_util.utcnow()
 
         if (
@@ -334,34 +388,52 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
         # External change -> pause automation for this cover.
         runtime.paused_until = now + _DEFAULT_PAUSE
-        _LOGGER.debug("Manual intervention detected on %s, pausing", node.config.entity_id)
+        _LOGGER.debug("Manual intervention detected on %s, pausing", member.entity_id)
 
     # -- the update cycle --------------------------------------------------
 
     async def _async_update_data(self) -> dict[str, CoverResult]:
         now = dt_util.utcnow()
         results: dict[str, CoverResult] = {}
-        for subentry_id, node in self._covers.items():
-            decision = self._resolve_cover(node, now)
+        for subentry_id, node in self._windows.items():
+            controls = self._controller_controls[node.controller_id]
+            morning_due, night_due = self._time_window_due(node, controls)
+            member_results: list[CoverMemberResult] = []
+            for member in node.members:
+                decision, trace = self._resolve_cover(node, member, now, morning_due, night_due)
+                member_results.append(
+                    CoverMemberResult(
+                        entity_id=member.entity_id,
+                        decision=decision,
+                        status_text=self._status_text(node, decision),
+                        trace=trace,
+                    )
+                )
+                await self._apply_decision(member, decision, now)
             results[subentry_id] = CoverResult(
-                entity_id=node.config.entity_id,
-                decision=decision,
-                status_text=self._status_text(node, decision),
+                subentry_id=subentry_id,
+                controller_id=node.controller_id,
+                members=member_results,
             )
-            await self._apply_decision(node, decision, now)
         await self._persist()
         return results
 
-    def _resolve_cover(self, node: _CoverNode, now: datetime) -> Decision:
-        cfg = node.config
-        runtime = node.runtime
+    def _resolve_cover(
+        self,
+        node: _WindowNode,
+        member: _CoverMember,
+        now: datetime,
+        morning_due: bool,
+        night_due: bool,
+    ) -> tuple[Decision, ResolverTrace]:
+        cfg = member.config
+        runtime = member.runtime
         controls = self._controller_controls[node.controller_id]
         cover_state = self.hass.states.get(cfg.entity_id)
         current_position = self._state_position(cover_state)
         current_tilt = cover_state.attributes.get(ATTR_TILT_POSITION) if cover_state else None
 
         manual_override = bool(runtime.paused_until and now < runtime.paused_until)
-        morning_due, night_due = self._time_window_due(node, controls)
 
         inp = ResolverInput(
             config=cfg,
@@ -378,13 +450,13 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             morning_due=morning_due,
             night_due=night_due,
             sun_in_funnel=self._sun_in_funnel(cfg),
-            bright_enough=self._bright_enough(node),
-            eco_temp_reached=self._eco_temp_reached(node),
-            heat_over_max=self._heat_over_max(node),
+            bright_enough=self._bright_enough(node, member),
+            eco_temp_reached=self._eco_temp_reached(node, member),
+            heat_over_max=self._heat_over_max(node, member),
             tracked_tilt=self._tracked_tilt(cfg),
             seconds_since_last_move=self._seconds_since_move(runtime, now),
         )
-        return resolve(inp)
+        return resolve_trace(inp)
 
     def _tracked_tilt(self, cfg: ResolvedCoverConfig) -> int | None:
         """Compute the dynamic slat tilt from the current sun elevation.
@@ -408,7 +480,9 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             elevation_high=elevation_high,
         )
 
-    def _time_window_due(self, node: _CoverNode, controls: ControllerControls) -> tuple[bool, bool]:
+    def _time_window_due(
+        self, node: _WindowNode, controls: ControllerControls
+    ) -> tuple[bool, bool]:
         """Return ``(morning_due, night_due)`` from the time-window helper."""
 
         now_local = dt_util.now()
@@ -510,7 +584,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             cfg.elevation_max,
         )
 
-    def _brightness(self, node: _CoverNode) -> float:
+    def _brightness(self, node: _WindowNode) -> float:
         entity_id = node.brightness_entity
         if entity_id:
             state = self.hass.states.get(entity_id)
@@ -540,8 +614,8 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         except (TypeError, ValueError):
             return 0.0
 
-    def _bright_enough(self, node: _CoverNode) -> bool:
-        return node.runtime.brightness_hysteresis.update(self._brightness(node))
+    def _bright_enough(self, node: _WindowNode, member: _CoverMember) -> bool:
+        return member.runtime.brightness_hysteresis.update(self._brightness(node))
 
     def _temperature(self, entity_id: str | None) -> float | None:
         if not entity_id:
@@ -557,18 +631,18 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                 return None
         return float(value)
 
-    def _eco_temp_reached(self, node: _CoverNode) -> bool:
+    def _eco_temp_reached(self, node: _WindowNode, member: _CoverMember) -> bool:
         temp = self._temperature(node.controller.heating_entity)
         if temp is None or node.controller.target_temp is None:
             return True  # no eco data -> behave like plain sun protection
-        hyst = TemperatureHysteresis(node.controller.target_temp, node.config.temp_hysteresis)
+        hyst = TemperatureHysteresis(node.controller.target_temp, member.config.temp_hysteresis)
         return hyst.update(temp)
 
-    def _heat_over_max(self, node: _CoverNode) -> bool:
+    def _heat_over_max(self, node: _WindowNode, member: _CoverMember) -> bool:
         temp = self._temperature(node.controller.room_temp_entity)
         if temp is None or node.controller.max_temp is None:
             return False
-        hyst = TemperatureHysteresis(node.controller.max_temp, node.config.temp_hysteresis)
+        hyst = TemperatureHysteresis(node.controller.max_temp, member.config.temp_hysteresis)
         return hyst.update(temp)
 
     def _seconds_since_move(self, runtime: CoverRuntime, now: datetime) -> float | None:
@@ -578,9 +652,11 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
     # -- command output ----------------------------------------------------
 
-    async def _apply_decision(self, node: _CoverNode, decision: Decision, now: datetime) -> None:
-        cfg = node.config
-        runtime = node.runtime
+    async def _apply_decision(
+        self, member: _CoverMember, decision: Decision, now: datetime
+    ) -> None:
+        cfg = member.config
+        runtime = member.runtime
         state = self.hass.states.get(cfg.entity_id)
         current = self._state_position(state)
         current_tilt = state.attributes.get(ATTR_TILT_POSITION) if state else None
@@ -617,7 +693,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
     # -- diagnostics & persistence ----------------------------------------
 
-    def _status_text(self, node: _CoverNode, decision: Decision) -> str:
+    def _status_text(self, node: _WindowNode, decision: Decision) -> str:
         attrs = self._sun_attrs()
         azimuth = f", az {attrs[0]:.0f}°" if attrs else ""
         brightness = self._brightness(node)
@@ -626,9 +702,12 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
     async def _persist(self) -> None:
         data: dict[str, Any] = {
-            subentry_id: node.runtime.as_dict()
-            for subentry_id, node in self._covers.items()
-            if node.runtime is not None
+            subentry_id: {
+                member.entity_id: member.runtime.as_dict()
+                for member in node.members
+                if member.runtime is not None
+            }
+            for subentry_id, node in self._windows.items()
         }
         data[_CONTROLLERS_KEY] = {
             controller_id: controls.as_dict()
@@ -646,10 +725,10 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         return node.config.area_id if node else ""
 
     def window_ids(self) -> list[str]:
-        return list(self._covers)
+        return list(self._windows)
 
     def window_controller_id(self, subentry_id: str) -> str | None:
-        node = self._covers.get(subentry_id)
+        node = self._windows.get(subentry_id)
         return node.controller_id if node else None
 
     def cover_result(self, subentry_id: str) -> CoverResult | None:
@@ -659,7 +738,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         results = self.data or {}
         return [
             results[subentry_id]
-            for subentry_id, node in self._covers.items()
+            for subentry_id, node in self._windows.items()
             if node.controller_id == controller_id and subentry_id in results
         ]
 

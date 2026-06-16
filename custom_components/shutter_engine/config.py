@@ -8,7 +8,7 @@ per-type dictionaries into :func:`build_engine_state`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .engine import (
@@ -134,8 +134,16 @@ def parse_window(data: dict[str, Any]) -> WindowConfig:
     slat_tracking = data.get("slat_tracking")
     if slat_tracking is not None:
         slat_tracking = bool(slat_tracking)
+    # A surface may drive several covers (``entity_ids``); fall back to the
+    # legacy single ``entity_id`` for subentries stored before multi-cover.
+    entity_ids = list(data.get("entity_ids") or [])
+    if not entity_ids:
+        single = data.get("entity_id")
+        if single:
+            entity_ids = [single]
     return WindowConfig(
         entity_id=data.get("entity_id", ""),
+        entity_ids=entity_ids,
         controller_id=data.get("controller_id", ""),
         shade_type=ShadeType(data.get("shade_type", ShadeType.STANDARD.value)),
         protection=protection,
@@ -161,21 +169,33 @@ class ControllerNode:
 
 
 @dataclass
-class WindowNode:
-    """A resolved window cover ready for the coordinator.
+class WindowCoverMember:
+    """One cover actor of a window surface with its resolved config.
 
-    ``subentry_id`` keys the per-window device/entities; ``config.entity_id`` is
-    the actual cover actor that gets commanded.
+    All members of a surface share the same configuration; only ``entity_id``
+    (the commanded cover) differs, so each is resolved individually.
+    """
+
+    entity_id: str
+    config: ResolvedCoverConfig
+
+
+@dataclass
+class WindowNode:
+    """A resolved window surface ready for the coordinator.
+
+    ``subentry_id`` keys the per-surface device/entities; ``members`` holds the
+    one-or-more cover actors that get commanded.
     """
 
     subentry_id: str
-    config: ResolvedCoverConfig
     controller_id: str
     controller: ControllerConfig
     night: TimeFunction
     morning: TimeFunction
     brightness_entity: str | None
     contact_entity: str | None
+    members: list[WindowCoverMember]
 
 
 @dataclass
@@ -223,17 +243,23 @@ def build_engine_state(
         if controller is None:
             continue  # dangling controller reference -> skip this window
         ruleset = ruleset_for(controller)
-        resolved = resolve_window(window, controller, ruleset, hub)
+        members: list[WindowCoverMember] = []
+        for cover_entity in window.entity_ids:
+            per_cover = replace(window, entity_id=cover_entity)
+            resolved = resolve_window(per_cover, controller, ruleset, hub)
+            members.append(WindowCoverMember(entity_id=cover_entity, config=resolved))
+        if not members:
+            continue  # surface without any covers -> nothing to drive
         window_nodes.append(
             WindowNode(
                 subentry_id=sid,
-                config=resolved,
                 controller_id=window.controller_id,
                 controller=controller,
                 night=ruleset.night,
                 morning=ruleset.morning,
                 brightness_entity=window.brightness_entity,
                 contact_entity=window.contact_entity,
+                members=members,
             )
         )
 

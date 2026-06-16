@@ -75,17 +75,20 @@ def test_build_engine_state_structure() -> None:
     window = state.windows[0]
     assert window.subentry_id == "win1"
     assert window.controller_id == "ctrl1"
-    assert window.config.entity_id == "cover.living_south"
-    assert window.config.shade_type is ShadeType.VENETIAN
-    assert window.config.slat_tracking is False
-    assert window.config.azimuth_from == 90
+    assert len(window.members) == 1
+    member = window.members[0]
+    assert member.entity_id == "cover.living_south"
+    assert member.config.entity_id == "cover.living_south"
+    assert member.config.shade_type is ShadeType.VENETIAN
+    assert member.config.slat_tracking is False
+    assert member.config.azimuth_from == 90
     assert window.brightness_entity == "sensor.lux_south"
     assert window.night.enabled is True
 
 
 def test_layered_inheritance_end_to_end() -> None:
     state = build_engine_state(_hub(), _rulesets(), _controllers(), _windows())
-    resolved = state.windows[0].config
+    resolved = state.windows[0].members[0].config
     # brightness_close: window(30000) wins over ruleset(35000) and hub(40000).
     assert resolved.brightness_close == 30000
     # safe_position only set on hub.
@@ -101,7 +104,7 @@ def test_missing_ruleset_falls_back_to_hub_defaults() -> None:
     controllers = {"ctrl1": {"area_id": "living", "ruleset_id": "does_not_exist"}}
     windows = {"win1": {"entity_id": "cover.x", "controller_id": "ctrl1"}}
     state = build_engine_state(_hub(), {}, controllers, windows)
-    resolved = state.windows[0].config
+    resolved = state.windows[0].members[0].config
     # No ruleset -> hub brightness_close wins, mode positions empty.
     assert resolved.brightness_close == 40000
     assert resolved.mode_positions == {}
@@ -111,4 +114,41 @@ def test_missing_ruleset_falls_back_to_hub_defaults() -> None:
 def test_window_with_dangling_controller_is_skipped() -> None:
     windows = {"win1": {"entity_id": "cover.x", "controller_id": "ghost"}}
     state = build_engine_state(_hub(), {}, {}, windows)
+    assert state.windows == []
+
+
+def test_surface_with_multiple_covers_builds_one_member_each() -> None:
+    windows = {
+        "win1": {
+            "entity_ids": ["cover.front_left", "cover.front_right"],
+            "controller_id": "ctrl1",
+            "azimuth_from": 90,
+            "azimuth_to": 270,
+            "brightness_entity": "sensor.lux",
+        }
+    }
+    state = build_engine_state(_hub(), _rulesets(), _controllers(), windows)
+
+    members = state.windows[0].members
+    assert [m.entity_id for m in members] == ["cover.front_left", "cover.front_right"]
+    # Each member is resolved to its own cover entity ...
+    assert members[0].config.entity_id == "cover.front_left"
+    assert members[1].config.entity_id == "cover.front_right"
+    # ... but the shared surface configuration is identical.
+    assert members[0].config.azimuth_from == members[1].config.azimuth_from == 90
+    # The surface-level optional sensors live on the node, once.
+    assert state.windows[0].brightness_entity == "sensor.lux"
+
+
+def test_window_backward_compat_single_entity_id() -> None:
+    windows = {"win1": {"entity_id": "cover.solo", "controller_id": "ctrl1"}}
+    state = build_engine_state(_hub(), _rulesets(), _controllers(), windows)
+    members = state.windows[0].members
+    assert len(members) == 1
+    assert members[0].entity_id == "cover.solo"
+
+
+def test_surface_without_any_cover_is_skipped() -> None:
+    windows = {"win1": {"entity_ids": [], "controller_id": "ctrl1"}}
+    state = build_engine_state(_hub(), _rulesets(), _controllers(), windows)
     assert state.windows == []

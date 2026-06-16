@@ -335,9 +335,25 @@ def _controller_data(user_input: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _window_title(data: dict[str, Any]) -> str:
+    """Human-readable subentry title for a (possibly multi-cover) surface."""
+
+    entity_ids = data.get("entity_ids") or []
+    return ", ".join(entity_ids) if entity_ids else "Fensterfläche"
+
+
+def _window_entity_ids(defaults: dict[str, Any]) -> list[str]:
+    """Return the surface's cover list, tolerating the legacy single key."""
+
+    if defaults.get("entity_ids"):
+        return list(defaults["entity_ids"])
+    single = defaults.get("entity_id")
+    return [single] if single else []
+
+
 def _window_data(user_input: dict[str, Any]) -> dict[str, Any]:
     data: dict[str, Any] = {
-        "entity_id": user_input["entity_id"],
+        "entity_ids": list(user_input["entity_ids"]),
         "controller_id": user_input["controller_id"],
         "shade_type": user_input.get("shade_type", ShadeType.STANDARD.value),
         "is_escape_route": bool(user_input.get("is_escape_route", True)),
@@ -432,8 +448,8 @@ def _window_schema(
         tracking = _TRACKING_DEFAULT
     fields: dict[Any, Any] = {
         vol.Required(
-            "entity_id", description={"suggested_value": defaults.get("entity_id")}
-        ): EntitySelector(EntitySelectorConfig(domain="cover")),
+            "entity_ids", description={"suggested_value": _window_entity_ids(defaults)}
+        ): EntitySelector(EntitySelectorConfig(domain="cover", multiple=True)),
         vol.Required(
             "controller_id", description={"suggested_value": defaults.get("controller_id")}
         ): _ref_select(controller_options),
@@ -630,7 +646,7 @@ class WindowSubentryFlow(ConfigSubentryFlow):
             return self.async_abort(reason="no_controllers")
         if user_input is not None:
             data = _window_data(user_input)
-            return self.async_create_entry(title=data["entity_id"], data=data)
+            return self.async_create_entry(title=_window_title(data), data=data)
         return self.async_show_form(step_id="user", data_schema=_window_schema({}, options))
 
     async def async_step_reconfigure(
@@ -641,7 +657,7 @@ class WindowSubentryFlow(ConfigSubentryFlow):
         if user_input is not None:
             data = _window_data(user_input)
             return self.async_update_and_abort(
-                self._get_entry(), subentry, title=data["entity_id"], data=data
+                self._get_entry(), subentry, title=_window_title(data), data=data
             )
         return self.async_show_form(
             step_id="reconfigure", data_schema=_window_schema(subentry.data, options)

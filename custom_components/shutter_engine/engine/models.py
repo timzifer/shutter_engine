@@ -192,14 +192,18 @@ class ControllerConfig(_InheritableDefaults):
 
 @dataclass
 class WindowConfig(_InheritableDefaults):
-    """A single controllable window surface (the actual cover actor).
+    """A single controllable window surface (one or more cover actors).
 
-    Picks a controller (``controller_id``), the cover ``entity_id`` it drives,
-    its sun funnel (azimuth/elevation), the escape-route flag and any
-    per-window overrides of the inherited scalars and mode positions.
+    Picks a controller (``controller_id``) and the cover entities it drives. A
+    surface may group several covers (e.g. a whole window front in a room); they
+    share this configuration but are each resolved individually. ``entity_id``
+    holds a single cover for the per-cover resolution path; ``entity_ids`` holds
+    the full surface list. Also carries the sun funnel (azimuth/elevation), the
+    escape-route flag and any per-window overrides.
     """
 
     entity_id: str = ""
+    entity_ids: list[str] = field(default_factory=list)
     controller_id: str = ""
     shade_type: ShadeType = ShadeType.STANDARD
     protection: ProtectionFlags | None = None

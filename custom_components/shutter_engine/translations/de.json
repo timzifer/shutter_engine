@@ -155,9 +155,9 @@
       "step": {
         "user": {
           "title": "Fensterfläche hinzufügen",
-          "description": "Eine einzelne steuerbare Fläche: Wähle die Cover-Entität und ihren Controller, ergänze dann den Sonnen-Trichter und den Fluchtweg-Schalter.",
+          "description": "Eine steuerbare Fläche: Wähle eine oder mehrere Cover-Entitäten und ihren Controller, ergänze dann den Sonnen-Trichter und den Fluchtweg-Schalter. Mehrere Cover (z. B. eine Fensterfront) teilen sich diese Konfiguration, werden aber einzeln ausgewertet.",
           "data": {
-            "entity_id": "Cover-Entität",
+            "entity_ids": "Cover-Entitäten",
             "controller_id": "Controller",
             "shade_type": "Behangtyp",
             "slat_tracking": "Dynamische Lamellennachführung",
@@ -183,7 +183,7 @@
         "reconfigure": {
           "title": "Fensterfläche neu konfigurieren",
           "data": {
-            "entity_id": "Cover-Entität",
+            "entity_ids": "Cover-Entitäten",
             "controller_id": "Controller",
             "shade_type": "Behangtyp",
             "slat_tracking": "Dynamische Lamellennachführung",

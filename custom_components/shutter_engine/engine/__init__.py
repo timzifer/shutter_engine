@@ -26,7 +26,15 @@ from .models import (
     TimeFunction,
     WindowConfig,
 )
-from .resolver import Decision, ResolverInput, resolve
+from .resolver import (
+    ConstraintEval,
+    Decision,
+    DriverEval,
+    ResolverInput,
+    ResolverTrace,
+    resolve,
+    resolve_trace,
+)
 from .slat import apply_tilt_deadband, slat_tilt_for_elevation
 from .sun import (
     estimate_brightness,
@@ -37,12 +45,14 @@ from .sun import (
 from .timewindow import TimeWindowResult, resolve_time_window
 
 __all__ = [
+    "ConstraintEval",
     "ContactState",
     "ControllerConfig",
     "CoverCapabilities",
     "DayMode",
     "Decision",
     "DecisionReason",
+    "DriverEval",
     "HubConfig",
     "Hysteresis",
     "apply_tilt_deadband",
@@ -55,6 +65,7 @@ __all__ = [
     "ProtectionFlags",
     "ResolvedCoverConfig",
     "ResolverInput",
+    "ResolverTrace",
     "RulesetConfig",
     "ShadeType",
     "TemperatureHysteresis",
@@ -63,4 +74,5 @@ __all__ = [
     "WindowConfig",
     "resolve",
     "resolve_time_window",
+    "resolve_trace",
 ]
