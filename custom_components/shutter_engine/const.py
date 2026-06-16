@@ -32,4 +32,4 @@ CONF_BURGLARY_ENTITY: Final = "burglary_entity"
 # change; the tick covers time-based triggers (night/morning windows).
 DEFAULT_SCAN_INTERVAL_SECONDS: Final = 60
 
-PLATFORMS: Final = ["binary_sensor", "select", "switch", "sensor"]
+PLATFORMS: Final = ["select", "switch", "sensor"]

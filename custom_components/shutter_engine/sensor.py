@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
 
     from .coordinator import CoverMemberResult, ShutterEngineCoordinator
 
+_LOGGER = logging.getLogger(__name__)
+
 _DECISION_REASON_OPTIONS: list[str] = [r.value for r in DecisionReason]
 
 
@@ -38,15 +41,19 @@ async def async_setup_entry(
     for subentry_id, subentry in entry.subentries.items():
         if subentry.subentry_type == "controller":
             display = resolve_area_display(hass, subentry.data.get("area_id", ""), subentry.title)
-            async_add_entities(
-                [
+            batch = [
                     ControllerStatusSensor(coordinator, subentry_id, display),
                     ControllerDebugSensor(coordinator, subentry_id, display),
                     ControllerReasonSensor(coordinator, subentry_id, display),
                     ControllerTraceSensor(coordinator, subentry_id, display),
-                ],
-                config_subentry_id=subentry_id,
+            ]
+            _LOGGER.debug(
+                "Creating %d sensor entities for controller %s (%s)",
+                len(batch),
+                subentry_id,
+                display,
             )
+            async_add_entities(batch, config_subentry_id=subentry_id)
         elif subentry.subentry_type == "window" and subentry_id in managed_windows:
             async_add_entities(
                 [WindowStatusSensor(coordinator, subentry_id, subentry.title)],

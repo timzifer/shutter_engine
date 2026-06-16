@@ -357,10 +357,6 @@
     }
   },
   "entity": {
-    "binary_sensor": {
-      "active": { "name": "Active" },
-      "blocked": { "name": "Blocked" }
-    },
     "select": {
       "mode": {
         "name": "Mode",
