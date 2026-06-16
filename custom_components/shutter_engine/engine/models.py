@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .const import DayMode, ShadeType
+from .const import DayMode, ShadeType, SlatMode
 
 
 @dataclass(frozen=True)
@@ -107,6 +107,7 @@ _INHERITABLE_FIELDS: tuple[str, ...] = (
     "delay_close",
     "delay_open",
     "min_movement_interval",
+    "motor_travel_time",
     "sun_tracking_deadband",
 )
 
@@ -129,6 +130,7 @@ class _InheritableDefaults:
     delay_close: float | None = None
     delay_open: float | None = None
     min_movement_interval: float | None = None
+    motor_travel_time: float | None = None
     sun_tracking_deadband: float | None = None
 
 
@@ -250,6 +252,9 @@ class WindowConfig(_InheritableDefaults):
     irradiance_entity: str | None = None
     contact_entity: str | None = None
     is_escape_route: bool = True
+    slat_mode: SlatMode = SlatMode.LINEAR
+    slat_depth_mm: float | None = None
+    slat_distance_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -267,6 +272,9 @@ class ResolvedCoverConfig:
     slat_tracking: bool
     mode_positions: dict[DayMode, ModePosition]
     is_escape_route: bool
+    slat_mode: SlatMode
+    slat_depth_mm: float | None
+    slat_distance_mm: float | None
 
     safe_position: int
     ventilation_position: int
@@ -284,6 +292,7 @@ class ResolvedCoverConfig:
     delay_close: float
     delay_open: float
     min_movement_interval: float
+    motor_travel_time: float
     sun_tracking_deadband: float
 
 
@@ -303,6 +312,7 @@ _HARD_DEFAULTS: dict[str, object] = {
     "delay_close": 0.0,
     "delay_open": 0.0,
     "min_movement_interval": 0.0,
+    "motor_travel_time": 180.0,
     "sun_tracking_deadband": 5.0,
 }
 
@@ -358,6 +368,9 @@ def resolve_window(
         slat_tracking=slat_tracking,
         mode_positions=mode_positions,
         is_escape_route=window.is_escape_route,
+        slat_mode=window.slat_mode,
+        slat_depth_mm=window.slat_depth_mm,
+        slat_distance_mm=window.slat_distance_mm,
         azimuth_from=window.azimuth_from,
         azimuth_to=window.azimuth_to,
         **resolved,  # type: ignore[arg-type]

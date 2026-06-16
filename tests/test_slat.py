@@ -5,6 +5,7 @@ from __future__ import annotations
 from custom_components.shutter_engine.engine import (
     apply_tilt_deadband,
     slat_tilt_for_elevation,
+    slat_tilt_physical,
 )
 
 # ---------------------------------------------------------------------------
@@ -65,3 +66,40 @@ def test_deadband_with_unknown_current_returns_target() -> None:
 
 def test_zero_deadband_always_moves() -> None:
     assert apply_tilt_deadband(46, 45, 0.0) == 46
+
+
+# ---------------------------------------------------------------------------
+# Physical slat tilt
+# ---------------------------------------------------------------------------
+
+
+def test_physical_low_sun_closes_slats() -> None:
+    assert slat_tilt_physical(0.0, slat_depth_mm=80, slat_distance_mm=60) == 0
+
+
+def test_physical_high_sun_opens_slats() -> None:
+    assert slat_tilt_physical(90.0, slat_depth_mm=80, slat_distance_mm=60) == 100
+
+
+def test_physical_mid_elevation_differs_from_linear() -> None:
+    physical = slat_tilt_physical(45.0, slat_depth_mm=80, slat_distance_mm=60)
+    linear = slat_tilt_for_elevation(45.0)
+    assert physical != linear
+
+
+def test_physical_degenerate_params_returns_closed() -> None:
+    assert slat_tilt_physical(45.0, slat_depth_mm=0, slat_distance_mm=60) == 0
+    assert slat_tilt_physical(45.0, slat_depth_mm=80, slat_distance_mm=0) == 0
+    assert slat_tilt_physical(45.0, slat_depth_mm=-1, slat_distance_mm=60) == 0
+
+
+def test_physical_negative_elevation_returns_closed() -> None:
+    assert slat_tilt_physical(-5.0, slat_depth_mm=80, slat_distance_mm=60) == 0
+
+
+def test_physical_monotonically_increases_with_elevation() -> None:
+    prev = 0
+    for elev in range(1, 90):
+        tilt = slat_tilt_physical(float(elev), slat_depth_mm=80, slat_distance_mm=60)
+        assert tilt >= prev, f"Tilt decreased at elevation {elev}: {tilt} < {prev}"
+        prev = tilt

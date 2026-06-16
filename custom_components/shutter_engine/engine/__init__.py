@@ -13,6 +13,7 @@ from .const import (
     DayMode,
     DecisionReason,
     ShadeType,
+    SlatMode,
 )
 from .hysteresis import Hysteresis, TemperatureHysteresis
 from .models import (
@@ -36,7 +37,7 @@ from .resolver import (
     resolve,
     resolve_trace,
 )
-from .slat import apply_tilt_deadband, slat_tilt_for_elevation
+from .slat import apply_tilt_deadband, slat_tilt_for_elevation, slat_tilt_physical
 from .sun import (
     estimate_brightness,
     in_azimuth_funnel,
@@ -70,6 +71,8 @@ __all__ = [
     "RulesetConfig",
     "ScheduleConfig",
     "ShadeType",
+    "SlatMode",
+    "slat_tilt_physical",
     "TemperatureHysteresis",
     "TimeFunction",
     "TimeWindowResult",

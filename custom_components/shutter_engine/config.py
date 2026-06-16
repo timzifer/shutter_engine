@@ -22,6 +22,7 @@ from .engine import (
     RulesetConfig,
     ScheduleConfig,
     ShadeType,
+    SlatMode,
     TimeFunction,
     WindowConfig,
 )
@@ -43,6 +44,7 @@ _INHERITABLE_KEYS = (
     "delay_close",
     "delay_open",
     "min_movement_interval",
+    "motor_travel_time",
     "sun_tracking_deadband",
 )
 
@@ -190,6 +192,9 @@ def parse_window(data: dict[str, Any]) -> WindowConfig:
         irradiance_entity=data.get("irradiance_entity"),
         contact_entity=data.get("contact_entity"),
         is_escape_route=bool(data.get("is_escape_route", True)),
+        slat_mode=SlatMode(data["slat_mode"]) if data.get("slat_mode") else SlatMode.LINEAR,
+        slat_depth_mm=data.get("slat_depth_mm"),
+        slat_distance_mm=data.get("slat_distance_mm"),
         **_inheritable(data),
     )
 

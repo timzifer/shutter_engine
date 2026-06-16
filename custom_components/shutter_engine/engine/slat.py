@@ -16,6 +16,8 @@ shut), ``100`` = fully open (slats horizontal).
 
 from __future__ import annotations
 
+import math
+
 #: Default elevation domain (degrees) the linear cut-off model spans when an
 #: area declares no explicit elevation band.
 DEFAULT_ELEVATION_LOW: float = 0.0
@@ -57,6 +59,39 @@ def slat_tilt_for_elevation(
     if elevation >= elevation_high:
         return tilt_high
     fraction = (elevation - elevation_low) / (elevation_high - elevation_low)
+    return round(tilt_low + fraction * (tilt_high - tilt_low))
+
+
+def slat_tilt_physical(
+    elevation: float,
+    *,
+    slat_depth_mm: float,
+    slat_distance_mm: float,
+    tilt_low: int = DEFAULT_TILT_LOW,
+    tilt_high: int = DEFAULT_TILT_HIGH,
+) -> int:
+    """Return the cut-off slat tilt using physical slat geometry.
+
+    Computes the minimum tilt angle that blocks direct sunlight based on
+    the slat depth (blade width) and the vertical distance between slats.
+    """
+
+    if slat_depth_mm <= 0 or slat_distance_mm <= 0:
+        return tilt_low
+    if elevation <= 0:
+        return tilt_low
+    if elevation >= 90:
+        return tilt_high
+
+    elevation_rad = math.radians(elevation)
+    # Maximum critical angle at elevation 0: arctan(distance / depth).
+    max_angle = math.atan(slat_distance_mm / slat_depth_mm)
+    # Critical tilt decreases as the sun climbs.
+    critical_angle = max_angle - elevation_rad
+    if critical_angle <= 0:
+        return tilt_high
+
+    fraction = 1.0 - min(1.0, critical_angle / max_angle)
     return round(tilt_low + fraction * (tilt_high - tilt_low))
 
 
