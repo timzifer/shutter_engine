@@ -42,10 +42,10 @@ async def async_setup_entry(
         if subentry.subentry_type == "controller":
             display = resolve_area_display(hass, subentry.data.get("area_id", ""), subentry.title)
             batch = [
-                    ControllerStatusSensor(coordinator, subentry_id, display),
-                    ControllerDebugSensor(coordinator, subentry_id, display),
-                    ControllerReasonSensor(coordinator, subentry_id, display),
-                    ControllerTraceSensor(coordinator, subentry_id, display),
+                ControllerStatusSensor(coordinator, subentry_id, display),
+                ControllerDebugSensor(coordinator, subentry_id, display),
+                ControllerReasonSensor(coordinator, subentry_id, display),
+                ControllerTraceSensor(coordinator, subentry_id, display),
             ]
             _LOGGER.debug(
                 "Creating %d sensor entities for controller %s (%s)",
@@ -166,10 +166,7 @@ class ControllerReasonSensor(ShutterEngineControllerEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, str]:
-        return {
-            member.entity_id: member.decision.reason.value
-            for member in self._all_members()
-        }
+        return {member.entity_id: member.decision.reason.value for member in self._all_members()}
 
 
 class ControllerTraceSensor(ShutterEngineControllerEntity, SensorEntity):
@@ -212,8 +209,7 @@ class ControllerTraceSensor(ShutterEngineControllerEntity, SensorEntity):
             decision = member.decision
             drivers = {d.name: d.matched for d in trace.drivers}
             constraints = {
-                c.name: {"applied": c.applied, "effect": c.effect}
-                for c in trace.constraints
+                c.name: {"applied": c.applied, "effect": c.effect} for c in trace.constraints
             }
             attrs[member.entity_id] = {
                 "selected_driver": trace.selected_driver,
