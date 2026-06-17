@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from custom_components.shutter_engine.engine import resolve_time_window
+from custom_components.shutter_engine.engine import latch_night, resolve_time_window
 
 
 def _dt(hour: int, minute: int = 0) -> datetime:
@@ -84,3 +84,33 @@ def test_not_in_window_is_not_due() -> None:
 def test_invalid_window_raises() -> None:
     with pytest.raises(ValueError):
         resolve_time_window(now=_dt(8, 0), window_start=_dt(9, 0), window_end=_dt(6, 0))
+
+
+# -- night latch ------------------------------------------------------------
+
+
+def test_latch_sets_when_night_fires() -> None:
+    assert latch_night(False, night_action=True, morning_action=False, morning_window=True) is True
+
+
+def test_latch_holds_after_window_without_new_action() -> None:
+    # Night already latched; window passed so no momentary action -> stays closed.
+    assert latch_night(True, night_action=False, morning_action=False, morning_window=True) is True
+
+
+def test_latch_clears_at_morning() -> None:
+    assert latch_night(True, night_action=False, morning_action=True, morning_window=True) is False
+
+
+def test_morning_wins_over_night_on_overlap() -> None:
+    assert latch_night(True, night_action=True, morning_action=True, morning_window=True) is False
+
+
+def test_no_morning_window_disables_latch() -> None:
+    # Without a morning window there is no reopen point, so the latch is disabled
+    # and the live (momentary) night action is returned: it sets on a night
+    # action and falls back as soon as the action is gone, even if previously on.
+    assert latch_night(False, night_action=True, morning_action=False, morning_window=False) is True
+    assert (
+        latch_night(True, night_action=False, morning_action=False, morning_window=False) is False
+    )

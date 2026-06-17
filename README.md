@@ -31,7 +31,13 @@ inputs into the engine.
 2. **Burglary / security** → default: no action; optional fixed position.
 3. **Storm** → safe position (only for wind-protected covers).
 4. **Lock / manual override** → hold the current position, automation suspended.
-5. **Night / morning** → time-window gated brightness/relative trigger.
+5. **Night / morning** → time-window gated brightness/relative trigger. The night
+   phase is **latched and persisted**: once it fires it keeps the covers closed
+   across the window end, midnight and restarts until the morning trigger releases
+   it (so e.g. eco mode can't reopen them mid-night, and they still close in
+   summer even when no dusk falls inside the window). Without a configured morning
+   window there is no defined reopen point, so the latch is disabled and night
+   stays momentary (the day mode reopens after the night window).
 6. **Sun / eco / heat protection** → sun funnel + brightness (+ temperature).
 7. **Default** → hold the last position.
 
