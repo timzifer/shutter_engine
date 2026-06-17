@@ -51,6 +51,7 @@ from .engine import (
     TemperatureHysteresis,
     estimate_brightness,
     in_sun_funnel,
+    latch_night,
     resolve_time_window,
     resolve_trace,
     slat_tilt_for_elevation,
@@ -74,6 +75,10 @@ _PERSIST_DEBOUNCE_SECONDS = 2.0
 
 # Persisted-state key holding the per-controller runtime toggles.
 _CONTROLLERS_KEY = "__controllers__"
+
+# Persisted-state key (per surface) holding the night/blackout latch. Chosen so
+# it never collides with a cover ``entity_id`` (which always contains a dot).
+_NIGHT_LATCHED_KEY = "__night_latched__"
 
 # Field names of a persisted per-cover runtime record. Used to detect the
 # legacy single-cover storage layout (runtime fields stored directly under the
@@ -192,6 +197,9 @@ class _WindowNode:
     irradiance_entity: str | None
     contact_entity: str | None
     members: list[_CoverMember]
+    #: Persisted night/blackout latch: ``True`` while the night phase holds the
+    #: covers closed (set when night fires, cleared at the morning trigger).
+    night_latched: bool = False
 
 
 class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
@@ -305,6 +313,8 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             # Old single-cover layout stored the runtime fields directly under
             # the subentry id; the new layout nests them per cover entity id.
             legacy = _is_legacy_runtime_record(saved_surface)
+            if not legacy:
+                node.night_latched = bool(saved_surface.get(_NIGHT_LATCHED_KEY, False))
             for member in node.members:
                 saved = saved_surface if legacy else saved_surface.get(member.entity_id, {})
                 member.runtime = CoverRuntime(
@@ -549,17 +559,34 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
         now_local = dt_util.now()
         schedule = self._active_schedule(node)
-        morning_due = False
-        night_due = False
 
-        if controls.morning_enabled and schedule.morning.window_start:
-            morning_due = self._window_due(
+        # Morning timing is evaluated regardless of the morning switch so it can
+        # release the night latch ("reopen at the morning window"); the actual
+        # open movement below still depends on ``morning_enabled``.
+        morning_action = False
+        if schedule.morning.window_start:
+            morning_action = self._window_due(
                 now_local, schedule.morning, self._sun_event("next_rising"), node, "morning"
             )
+
+        night_action = False
         if controls.night_enabled and schedule.night.window_start:
-            night_due = self._window_due(
+            night_action = self._window_due(
                 now_local, schedule.night, self._sun_event("next_setting"), node, "night"
             )
+
+        node.night_latched = latch_night(
+            node.night_latched,
+            night_action=night_action,
+            morning_action=morning_action,
+            morning_window=bool(schedule.morning.window_start),
+        )
+        if not controls.night_enabled:
+            # Releasing the night switch lifts the blackout immediately.
+            node.night_latched = False
+
+        morning_due = morning_action and controls.morning_enabled
+        night_due = node.night_latched
         return morning_due, night_due
 
     def _window_due(self, now_local, fn, sun_event, node, kind) -> bool:
@@ -805,14 +832,15 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         return f"{decision.position}% — {decision.reason.value}{azimuth}{klx}"
 
     async def _persist(self) -> None:
-        data: dict[str, Any] = {
-            subentry_id: {
+        data: dict[str, Any] = {}
+        for subentry_id, node in self._windows.items():
+            surface: dict[str, Any] = {
                 member.entity_id: member.runtime.as_dict()
                 for member in node.members
                 if member.runtime is not None
             }
-            for subentry_id, node in self._windows.items()
-        }
+            surface[_NIGHT_LATCHED_KEY] = node.night_latched
+            data[subentry_id] = surface
         data[_CONTROLLERS_KEY] = {
             controller_id: controls.as_dict()
             for controller_id, controls in self._controller_controls.items()

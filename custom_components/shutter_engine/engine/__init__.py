@@ -44,7 +44,7 @@ from .sun import (
     in_elevation_band,
     in_sun_funnel,
 )
-from .timewindow import TimeWindowResult, resolve_time_window
+from .timewindow import TimeWindowResult, latch_night, resolve_time_window
 
 __all__ = [
     "ConstraintEval",
@@ -77,6 +77,7 @@ __all__ = [
     "TimeFunction",
     "TimeWindowResult",
     "WindowConfig",
+    "latch_night",
     "resolve",
     "resolve_time_window",
     "resolve_trace",

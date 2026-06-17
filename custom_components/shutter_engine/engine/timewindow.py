@@ -75,3 +75,42 @@ def resolve_time_window(
     in_window = window_start <= now <= window_end
     action_due = in_window and now >= action_at
     return TimeWindowResult(in_window=in_window, action_at=action_at, action_due=action_due)
+
+
+def latch_night(
+    previous: bool,
+    *,
+    night_action: bool,
+    morning_action: bool,
+    morning_window: bool,
+) -> bool:
+    """Persisted night latch for the night/blackout phase.
+
+    The night and morning triggers from :func:`resolve_time_window` are momentary:
+    they are only due *inside* their window. Without latching the night action
+    falls away the moment ``now`` passes the window end, so a lower-priority day
+    mode (e.g. eco) immediately reopens the cover. This latch remembers that night
+    has fired and keeps it active until the morning trigger, so the cover stays
+    closed across the window end, midnight and restarts.
+
+    Args:
+        previous: The latch state from the previous tick (restored across
+            restarts).
+        night_action: ``True`` when the night time-window action is due now.
+        morning_action: ``True`` when the morning time-window action is due now.
+        morning_window: ``True`` when a morning window is configured. Without one
+            there is no defined reopen point, so the latch is disabled and the
+            momentary ``night_action`` is returned — preserving the pre-latch
+            behaviour where the day mode reopens after the night window closes.
+
+    Returns:
+        The new latch state.
+    """
+
+    if not morning_window:
+        return night_action
+    if morning_action:
+        return False
+    if night_action:
+        return True
+    return previous
