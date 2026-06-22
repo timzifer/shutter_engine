@@ -42,6 +42,8 @@ from .const import (
     STORAGE_VERSION,
 )
 from .engine import (
+    ENFORCED_DRIVER_REASONS,
+    MOMENTARY_DRIVER_REASONS,
     ContactState,
     DayMode,
     Decision,
@@ -52,6 +54,7 @@ from .engine import (
     estimate_brightness,
     in_sun_funnel,
     latch_night,
+    plan_command,
     resolve_time_window,
     resolve_trace,
     slat_tilt_for_elevation,
@@ -69,6 +72,12 @@ _LOGGER = logging.getLogger(__name__)
 # Debounce interval for coalescing rapid persistence writes.
 _PERSIST_DEBOUNCE_SECONDS = 2.0
 
+# Decisions whose target is "real" (a driver wants a specific position), as
+# opposed to holds/blocks. The last decided target is tracked for these so the
+# momentary edge-detection in :func:`plan_command` stays correct across driver
+# changes.
+_ACTIONABLE_REASONS = ENFORCED_DRIVER_REASONS | MOMENTARY_DRIVER_REASONS
+
 # Persisted-state key holding the per-controller runtime toggles.
 _CONTROLLERS_KEY = "__controllers__"
 
@@ -80,7 +89,7 @@ _NIGHT_LATCHED_KEY = "__night_latched__"
 # legacy single-cover storage layout (runtime fields stored directly under the
 # subentry id) versus the multi-cover layout (nested under each cover entity id).
 _RUNTIME_FIELD_KEYS = frozenset(
-    {"brightness_active", "irradiance_active", "last_command_at", "last_target"}
+    {"brightness_active", "irradiance_active", "last_command_at", "last_target", "last_tilt"}
 )
 
 
@@ -92,6 +101,7 @@ class CoverRuntime:
     irradiance_hysteresis: TemperatureHysteresis
     last_command_at: datetime | None = None
     last_target: int | None = None
+    last_tilt: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -99,6 +109,7 @@ class CoverRuntime:
             "irradiance_active": self.irradiance_hysteresis.active,
             "last_command_at": _iso(self.last_command_at),
             "last_target": self.last_target,
+            "last_tilt": self.last_tilt,
         }
 
 
@@ -322,6 +333,7 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                     ),
                     last_command_at=_parse_iso(saved.get("last_command_at")),
                     last_target=saved.get("last_target"),
+                    last_tilt=saved.get("last_tilt"),
                 )
         self._subscribe()
 
@@ -740,33 +752,39 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         current = self._state_position(state)
         current_tilt = state.attributes.get(ATTR_TILT_POSITION) if state else None
 
-        tilt_changed = (
-            decision.tilt is not None
-            and cfg.capabilities.can_tilt
-            and (current_tilt is None or int(current_tilt) != decision.tilt)
+        plan = plan_command(
+            decision,
+            current_position=current,
+            current_tilt=current_tilt,
+            last_target=runtime.last_target,
+            last_tilt=runtime.last_tilt,
+            can_tilt=cfg.capabilities.can_tilt,
         )
-        position_changed = not decision.blocked and decision.position != current
 
-        if not position_changed and not tilt_changed:
-            return
-
-        if position_changed:
+        if plan.position is not None:
             await self.hass.services.async_call(
                 COVER_DOMAIN,
                 SERVICE_SET_COVER_POSITION,
-                {ATTR_ENTITY_ID: cfg.entity_id, ATTR_POSITION: decision.position},
+                {ATTR_ENTITY_ID: cfg.entity_id, ATTR_POSITION: plan.position},
                 blocking=False,
             )
-        if tilt_changed:
+        if plan.tilt is not None:
             await self.hass.services.async_call(
                 COVER_DOMAIN,
                 SERVICE_SET_COVER_TILT_POSITION,
-                {ATTR_ENTITY_ID: cfg.entity_id, ATTR_TILT_POSITION: decision.tilt},
+                {ATTR_ENTITY_ID: cfg.entity_id, ATTR_TILT_POSITION: plan.tilt},
                 blocking=False,
             )
 
-        runtime.last_command_at = now
-        runtime.last_target = decision.position
+        if plan.moves:
+            runtime.last_command_at = now
+
+        # Track the last *decided* target so momentary edge-detection compares
+        # against the previous decision, not the live physical position. Holds
+        # and blocks leave the baseline untouched (manual position is kept).
+        if not decision.blocked and decision.reason in _ACTIONABLE_REASONS:
+            runtime.last_target = decision.position
+            runtime.last_tilt = decision.tilt
 
     # -- diagnostics & persistence ----------------------------------------
 

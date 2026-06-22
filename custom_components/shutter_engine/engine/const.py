@@ -58,6 +58,34 @@ class DecisionReason(StrEnum):
     MIN_INTERVAL_BLOCK = "min_interval_block"
 
 
+# Drivers whose target is continuously enforced against the cover's physical
+# position (safety / hardware protection): they re-assert their position even
+# after a manual change, so the cover self-corrects.
+ENFORCED_DRIVER_REASONS = frozenset(
+    {
+        DecisionReason.FIRE,
+        DecisionReason.BURGLARY,
+        DecisionReason.STORM,
+        DecisionReason.LOCKOUT_OPEN,
+        DecisionReason.LOCKOUT_VENTILATION,
+    }
+)
+
+# Comfort drivers that only act momentarily: they command once when the
+# decision changes and never fight a subsequent manual override. Any reason
+# that is neither enforced nor momentary (HOLD, DISABLED, LOCKED, blocked
+# constraints) results in no movement at all.
+MOMENTARY_DRIVER_REASONS = frozenset(
+    {
+        DecisionReason.NIGHT,
+        DecisionReason.MORNING,
+        DecisionReason.SUN_PROTECTION,
+        DecisionReason.ECO,
+        DecisionReason.HEAT_PROTECTION,
+    }
+)
+
+
 class SlatMode(StrEnum):
     """Slat tilt calculation mode for venetian blinds."""
 
