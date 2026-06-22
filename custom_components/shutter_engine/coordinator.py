@@ -1,9 +1,9 @@
 """DataUpdateCoordinator wiring Home Assistant state into the resolver.
 
-The coordinator owns the per-cover runtime state (hysteresis, manual-override
-pauses, last-movement timestamps) and persists it through the Home Assistant
-store helper. On every relevant trigger it builds a :class:`ResolverInput` per
-cover, runs :func:`resolve` and commands the cover.
+The coordinator owns the per-cover runtime state (hysteresis, last-movement
+timestamps) and persists it through the Home Assistant store helper. On every
+relevant trigger it builds a :class:`ResolverInput` per cover, runs
+:func:`resolve` and commands the cover.
 
 The configuration is assembled from the config entry's *subentries*
 (``ruleset`` / ``controller`` / ``window``) by :func:`build_engine_state`.
@@ -66,10 +66,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Tolerance for accepting our own movement as "cleanly executed" (concept §8).
-_POSITION_TOLERANCE = 5  # percent
-# Default duration a cover stays paused after a detected manual intervention.
-_DEFAULT_PAUSE = timedelta(hours=2)
 # Debounce interval for coalescing rapid persistence writes.
 _PERSIST_DEBOUNCE_SECONDS = 2.0
 
@@ -84,7 +80,7 @@ _NIGHT_LATCHED_KEY = "__night_latched__"
 # legacy single-cover storage layout (runtime fields stored directly under the
 # subentry id) versus the multi-cover layout (nested under each cover entity id).
 _RUNTIME_FIELD_KEYS = frozenset(
-    {"brightness_active", "irradiance_active", "last_command_at", "last_target", "paused_until"}
+    {"brightness_active", "irradiance_active", "last_command_at", "last_target"}
 )
 
 
@@ -94,11 +90,8 @@ class CoverRuntime:
 
     brightness_hysteresis: TemperatureHysteresis
     irradiance_hysteresis: TemperatureHysteresis
-    expected_position: int | None = None
-    expected_until: datetime | None = None
     last_command_at: datetime | None = None
     last_target: int | None = None
-    paused_until: datetime | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -106,7 +99,6 @@ class CoverRuntime:
             "irradiance_active": self.irradiance_hysteresis.active,
             "last_command_at": _iso(self.last_command_at),
             "last_target": self.last_target,
-            "paused_until": _iso(self.paused_until),
         }
 
 
@@ -330,7 +322,6 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
                     ),
                     last_command_at=_parse_iso(saved.get("last_command_at")),
                     last_target=saved.get("last_target"),
-                    paused_until=None,
                 )
         self._subscribe()
 
@@ -388,48 +379,8 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         self.hass.async_create_task(self.async_request_refresh())
 
     @callback
-    def _handle_state_change(self, event) -> None:
-        entity_id = event.data.get("entity_id")
-        found = self._member_by_cover_entity.get(entity_id)
-        if found is not None:
-            _node, member = found
-            self._detect_manual_intervention(member, event.data.get("new_state"))
+    def _handle_state_change(self, _event) -> None:
         self.hass.async_create_task(self.async_request_refresh())
-
-    # -- manual intervention detection (§8) --------------------------------
-
-    def _detect_manual_intervention(self, member: _CoverMember, new_state: State | None) -> None:
-        """Flag a cover as paused when an external change is detected.
-
-        Our own commands are tolerated within a position and time window; any
-        other change counts as a manual intervention.
-        """
-
-        if new_state is None:
-            return
-        position = new_state.attributes.get(ATTR_POSITION)
-        if position is None:
-            return
-        runtime = member.runtime
-        now = dt_util.utcnow()
-
-        if (
-            runtime.expected_position is not None
-            and runtime.expected_until is not None
-            and now <= runtime.expected_until
-            and abs(int(position) - runtime.expected_position) <= _POSITION_TOLERANCE
-        ):
-            # Cleanly executed own command -> clear expectation.
-            runtime.expected_position = None
-            runtime.expected_until = None
-            return
-
-        if new_state.state in ("opening", "closing"):
-            return
-
-        # External change -> pause automation for this cover.
-        runtime.paused_until = now + _DEFAULT_PAUSE
-        _LOGGER.debug("Manual intervention detected on %s, pausing", member.entity_id)
 
     # -- the update cycle --------------------------------------------------
 
@@ -474,8 +425,6 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
         current_position = self._state_position(cover_state)
         current_tilt = cover_state.attributes.get(ATTR_TILT_POSITION) if cover_state else None
 
-        manual_override = bool(runtime.paused_until and now < runtime.paused_until)
-
         inp = ResolverInput(
             config=cfg,
             current_position=current_position,
@@ -483,7 +432,6 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
             day_mode=controls.day_mode,
             enabled=controls.enabled,
             locked=controls.locked,
-            manual_override=manual_override,
             fire_active=self._is_on(self.hub.fire_entity),
             burglary_active=self._is_on(self.hub.burglary_entity),
             storm_active=self._is_on(self.hub.wind_entity),
@@ -819,8 +767,6 @@ class ShutterEngineCoordinator(DataUpdateCoordinator[dict[str, CoverResult]]):
 
         runtime.last_command_at = now
         runtime.last_target = decision.position
-        runtime.expected_position = decision.position
-        runtime.expected_until = now + timedelta(seconds=cfg.motor_travel_time)
 
     # -- diagnostics & persistence ----------------------------------------
 

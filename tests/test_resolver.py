@@ -133,13 +133,6 @@ def test_lock_holds_position() -> None:
     assert decision.reason is DecisionReason.LOCKED
 
 
-def test_manual_override_holds_position() -> None:
-    inp = ResolverInput(config=make_cover_config(), manual_override=True, current_position=33)
-    decision = resolve(inp)
-    assert decision.position == 33
-    assert decision.reason is DecisionReason.MANUAL_OVERRIDE
-
-
 def test_morning_opens() -> None:
     inp = ResolverInput(config=make_cover_config(), morning_due=True, current_position=0)
     decision = resolve(inp)

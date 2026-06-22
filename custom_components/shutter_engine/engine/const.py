@@ -44,7 +44,6 @@ class DecisionReason(StrEnum):
     STORM = "storm"
     DISABLED = "disabled"
     LOCKED = "locked"
-    MANUAL_OVERRIDE = "manual_override"
     NIGHT = "night"
     MORNING = "morning"
     SUN_PROTECTION = "sun_protection"

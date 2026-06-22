@@ -30,7 +30,7 @@ inputs into the engine.
    protection.*
 2. **Burglary / security** → default: no action; optional fixed position.
 3. **Storm** → safe position (only for wind-protected covers).
-4. **Lock / manual override** → hold the current position, automation suspended.
+4. **Lock** → hold the current position, automation suspended.
 5. **Night / morning** → time-window gated brightness/relative trigger. The night
    phase is **latched and persisted**: once it fires it keeps the covers closed
    across the window end, midnight and restarts until the morning trigger releases
