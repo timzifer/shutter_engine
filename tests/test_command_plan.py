@@ -67,9 +67,7 @@ def test_enforced_skips_when_already_at_target() -> None:
 
 
 def test_blocked_never_moves() -> None:
-    decision = Decision(
-        position=0, tilt=None, reason=DecisionReason.FROST_BLOCK, blocked=True
-    )
+    decision = Decision(position=0, tilt=None, reason=DecisionReason.FROST_BLOCK, blocked=True)
     plan = _plan(decision, current_position=100, last_target=0)
     assert not plan.moves
 
@@ -90,9 +88,7 @@ def test_momentary_tilt_edge_triggered() -> None:
     same = _plan(decision, current_position=80, last_target=80, last_tilt=45, can_tilt=True)
     assert not same.moves
     # Tilt changed since last decision -> only tilt is driven.
-    changed = _plan(
-        decision, current_position=80, last_target=80, last_tilt=10, can_tilt=True
-    )
+    changed = _plan(decision, current_position=80, last_target=80, last_tilt=10, can_tilt=True)
     assert changed.position is None
     assert changed.tilt == 45
 
