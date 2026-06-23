@@ -21,6 +21,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .const import (
+    ENFORCED_DRIVER_REASONS,
+    MOMENTARY_DRIVER_REASONS,
     POSITION_CLOSED,
     POSITION_OPEN,
     ContactState,
@@ -40,6 +42,70 @@ class Decision:
     reason: DecisionReason
     #: ``True`` when a constraint suppressed a wanted movement (held in place).
     blocked: bool = False
+
+
+@dataclass(frozen=True)
+class CommandPlan:
+    """Which axes the coordinator should actually drive for a decision.
+
+    ``None`` means "do not send a command for this axis". This decouples the
+    *decision* (where the cover should be) from the *command* (whether we touch
+    the motor right now), so comfort drivers only act momentarily while safety
+    drivers keep enforcing their target.
+    """
+
+    position: int | None = None
+    tilt: int | None = None
+
+    @property
+    def moves(self) -> bool:
+        return self.position is not None or self.tilt is not None
+
+
+def plan_command(
+    decision: Decision,
+    *,
+    current_position: int,
+    current_tilt: int | None,
+    last_target: int | None,
+    last_tilt: int | None,
+    can_tilt: bool,
+) -> CommandPlan:
+    """Decide which axes to drive, given the decision and prior state.
+
+    * Blocked or hold-style decisions never move the cover (a manual position is
+      preserved).
+    * Enforced drivers (fire, burglary, storm, lock-out) compare against the
+      cover's *physical* position and re-assert it — self-correcting safety.
+    * Momentary comfort drivers (night/morning/sun/eco/heat) compare against the
+      *previously decided* target and therefore only act when the decision
+      changes, never fighting a subsequent manual override.
+    """
+
+    if decision.blocked:
+        return CommandPlan()
+
+    if decision.reason in ENFORCED_DRIVER_REASONS:
+        ref_position: int | None = current_position
+        ref_tilt = current_tilt
+    elif decision.reason in MOMENTARY_DRIVER_REASONS:
+        ref_position = last_target
+        ref_tilt = last_tilt
+    else:
+        # HOLD / DISABLED / LOCKED and any future reason: do not move.
+        return CommandPlan()
+
+    position = decision.position if decision.position != ref_position else None
+    tilt = (
+        decision.tilt
+        if (
+            decision.tilt is not None
+            and can_tilt
+            and (ref_tilt is None or int(ref_tilt) != decision.tilt)
+        )
+        else None
+    )
+    return CommandPlan(position=position, tilt=tilt)
 
 
 @dataclass(frozen=True)
@@ -98,7 +164,6 @@ class ResolverInput:
     day_mode: DayMode = DayMode.OFF
     enabled: bool = True
     locked: bool = False
-    manual_override: bool = False
 
     # Hazards ---------------------------------------------------------------
     fire_active: bool = False
@@ -216,7 +281,6 @@ def _select_driver_traced(inp: ResolverInput) -> tuple[Decision, list[DriverEval
         ),
         ("disabled", not inp.enabled, _hold(inp, DecisionReason.DISABLED)),
         ("locked", inp.locked, _hold(inp, DecisionReason.LOCKED)),
-        ("manual_override", inp.manual_override, _hold(inp, DecisionReason.MANUAL_OVERRIDE)),
         ("morning", inp.morning_due, _open(DecisionReason.MORNING)),
         (
             "night",

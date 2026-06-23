@@ -9,6 +9,8 @@ lives in the parent package and feeds resolved inputs into :func:`resolve`.
 """
 
 from .const import (
+    ENFORCED_DRIVER_REASONS,
+    MOMENTARY_DRIVER_REASONS,
     ContactState,
     DayMode,
     DecisionReason,
@@ -29,11 +31,13 @@ from .models import (
     WindowConfig,
 )
 from .resolver import (
+    CommandPlan,
     ConstraintEval,
     Decision,
     DriverEval,
     ResolverInput,
     ResolverTrace,
+    plan_command,
     resolve,
     resolve_trace,
 )
@@ -47,6 +51,7 @@ from .sun import (
 from .timewindow import TimeWindowResult, latch_night, resolve_time_window
 
 __all__ = [
+    "CommandPlan",
     "ConstraintEval",
     "ContactState",
     "ControllerConfig",
@@ -55,7 +60,9 @@ __all__ = [
     "Decision",
     "DecisionReason",
     "DriverEval",
+    "ENFORCED_DRIVER_REASONS",
     "HubConfig",
+    "MOMENTARY_DRIVER_REASONS",
     "Hysteresis",
     "apply_tilt_deadband",
     "estimate_brightness",
@@ -78,6 +85,7 @@ __all__ = [
     "TimeWindowResult",
     "WindowConfig",
     "latch_night",
+    "plan_command",
     "resolve",
     "resolve_time_window",
     "resolve_trace",

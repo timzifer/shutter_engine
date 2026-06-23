@@ -30,7 +30,7 @@ inputs into the engine.
    protection.*
 2. **Burglary / security** → default: no action; optional fixed position.
 3. **Storm** → safe position (only for wind-protected covers).
-4. **Lock / manual override** → hold the current position, automation suspended.
+4. **Lock** → hold the current position, automation suspended.
 5. **Night / morning** → time-window gated brightness/relative trigger. The night
    phase is **latched and persisted**: once it fires it keeps the covers closed
    across the window end, midnight and restarts until the morning trigger releases
@@ -52,6 +52,17 @@ inputs into the engine.
 
 > Deliberate trade-off: **frost beats storm.** A frozen shutter must not move,
 > even in a storm, to protect the motor.
+
+### Manual overrides
+
+The engine only issues **momentary** commands and does not continuously track a
+cover's physical position. Comfort drivers (night, morning, sun / eco / heat
+protection) act **once when their decision changes** — if you move a cover by
+hand afterwards, the automation does **not** drive it back; it only acts again
+on the next decision change. Safety drivers (fire, storm) and the lock-out
+constraints keep **enforcing** their target, so they self-correct a manual
+change. Frost continues to block movement. Use the **lock / disable** controls
+to suspend automation entirely.
 
 ## Data model (inheritance)
 
