@@ -1,93 +1,90 @@
-# Verhalten in Beispielen (visuelle Testfälle)
+# Behaviour by example (visual test cases)
 
-Diese Seite dokumentiert anhand „realer" Tagesverläufe, wie sich die
-Controller/Treiber der Shutter Engine verhalten. Jede Grafik stammt aus einer
-**zeitreihenbasierten Simulation**: rohe Eingänge (Sonnenstand,
-Innenraumtemperatur, Ereignis-Entities) werden Minute für Minute durch dieselbe
-Logik geschickt wie im echten Koordinator, und der Resolver-Ausgang
-(Coverstellung, Lamellen-Tilt, Entscheidungs-Reason) wird mitgeschrieben.
+This page documents how the shutter engine's controllers/drivers behave over
+"real" daily runs. Every chart is produced from a **time-series simulation**:
+raw inputs (sun position, indoor temperature, event entities) are fed minute by
+minute through the same logic as the real coordinator, and the resolver output
+(cover position, slat tilt, decision reason) is recorded.
 
-Die Grafiken werden direkt aus dem Code erzeugt und bleiben damit immer mit dem
-tatsächlichen Engine-Verhalten konsistent:
+The charts are generated directly from the code and therefore always stay
+consistent with the actual engine behaviour:
 
 ```bash
 pip install -r requirements_test.txt
 pytest tests/test_visual_scenarios.py
 ```
 
-Die Szenarien liegen in [`tests/visual/`](../tests/visual/), die zugehörigen
-Verhaltens-Assertions in
+The scenarios live in [`tests/visual/`](../tests/visual/), and the associated
+behavioural assertions in
 [`tests/test_visual_scenarios.py`](../tests/test_visual_scenarios.py).
 
-## So liest man die Diagramme
+## How to read the charts
 
-Jedes Diagramm hat drei übereinanderliegende Panels mit gemeinsamer Zeitachse
-(0–24 Uhr):
+Each chart has three stacked panels sharing a common time axis (0–24 h):
 
-1. **Umwelt** – Sonnenelevation (linke Achse) und Innenraumtemperatur (rechte
-   Achse). Die Sonne folgt einem synthetischen Tagesbogen (Aufgang ~06:00,
-   Höchststand mittags, Untergang ~20:00).
-2. **Zustände & Ereignisse** – diskrete Entity-/Bedingungs-Spuren (Sonne im
-   Funnel, „hell genug" nach Hysterese, über Max-Temperatur, Sperre, Feuer,
-   Einbruch). Eine Spur ist eingefärbt, solange der Zustand aktiv ist;
-   `(—)` markiert Spuren, die im jeweiligen Szenario nie auslösen.
-3. **Ausgabe** – die resultierende **Coverstellung** (0 % = offen/oben,
-   100 % = geschlossen/unten) und der **Lamellen-Tilt**. Der farbige Hintergrund
-   zeigt den **Entscheidungs-Reason**, der in diesem Zeitfenster gewonnen hat.
+1. **Environment** – sun elevation (left axis) and indoor temperature (right
+   axis). The sun follows a synthetic daily arc (rise ~06:00, peak at noon,
+   set ~20:00).
+2. **States & events** – discrete entity/condition lanes (sun in funnel,
+   "bright enough" after hysteresis, over max temperature, lock, fire,
+   burglary). A lane is filled while its state is active; `(—)` marks lanes that
+   never trigger in that particular scenario.
+3. **Output** – the resulting **cover position** (0 % = open/up,
+   100 % = closed/down) and the **slat tilt**. The coloured background shows the
+   **decision reason** that won during that time window.
 
-> Hinweis zur Konvention: Position `0` bedeutet offen, `100` geschlossen; beim
-> Tilt heißt `0` „Lamellen zu" und `100` „Lamellen waagerecht/offen".
+> Convention note: position `0` means open, `100` closed; for the tilt, `0`
+> means "slats shut" and `100` means "slats horizontal/open".
 
 ---
 
-## 1. Sonnenschutz an einem klaren Tag
+## 1. Sun protection on a clear day
 
-![Sonnenschutz an einem klaren Tag](images/scenarios/sun_protection_day.png)
+![Sun protection on a clear day](images/scenarios/sun_protection_day.png)
 
-Tagesmodus **Sonnenschutz**. Sobald die Sonne in den Funnel steigt **und** es
-hell genug ist (Helligkeit über der Hysterese-Schwelle), verschattet der Treiber
-auf 80 %. Die Lamellen **tracken** die Sonnenelevation – flach stehende Sonne →
-Lamellen schließen, hoher Sonnenstand → Lamellen öffnen. Am Abend fällt die
-Helligkeit unter die untere Hysterese-Schwelle und der Behang öffnet wieder
-vollständig.
+Day mode **sun protection**. As soon as the sun enters the funnel **and** it is
+bright enough (brightness above the hysteresis threshold), the driver shades to
+80 %. The slats **track** the sun elevation – a low sun closes the slats, a high
+sun opens them. In the evening the brightness drops below the lower hysteresis
+threshold and the cover opens again fully.
 
-## 2. Hitzeschutz an einem heißen Tag
+## 2. Heat protection on a hot day
 
-![Hitzeschutz an einem heißen Tag](images/scenarios/heat_protection_hot_day.png)
+![Heat protection on a hot day](images/scenarios/heat_protection_hot_day.png)
 
-Tagesmodus **Hitzeschutz** mit Maximaltemperatur 24 °C. Die Raumtemperatur
-folgt dem Tag nachlaufend und überschreitet am Nachmittag die Grenze. Sobald
-`über Max-Temp` aktiv wird (oder die Sonne direkt verschattet), schließt der
-Behang vollständig (0 %) zum aktiven Kühlen. Kühlt der Raum unter die
-Hysterese-Grenze ab, gibt der Treiber die Behang wieder frei.
+Day mode **heat protection** with a maximum temperature of 24 °C. The room
+temperature follows the day with a lag and exceeds the limit in the afternoon.
+As soon as `over max temp` becomes active (or the sun directly shades), the
+cover closes fully (0 %) for active cooling. Once the room cools below the
+hysteresis limit, the driver releases the cover again.
 
-## 3. Manuelle Sperre hält die Position
+## 3. Manual lock holds the position
 
-![Manuelle Sperre hält die Position](images/scenarios/manual_lock.png)
+![Manual lock holds the position](images/scenarios/manual_lock.png)
 
-Tagesmodus Sonnenschutz, aber von **07:30 bis 13:00** ist die **manuelle Sperre**
-aktiv. Obwohl Sonne und Helligkeit längst eine Verschattung auslösen würden,
-hält der Behang seine Position (Reason **LOCKED**) – die Sperre steht in der
-Prioritäts-Ladder über den Komfort-Treibern. Erst nach Aufheben der Sperre um
-13:00 verschattet die Automatik auf 80 %.
+Day mode sun protection, but the **manual lock** is active from **07:30 to
+13:00**. Even though the sun and brightness would have long triggered shading,
+the cover holds its position (reason **LOCKED**) – the lock sits above the
+comfort drivers in the priority ladder. Only after the lock is released at 13:00
+does the automation shade to 80 %.
 
-## 4. Feuer öffnet den Fluchtweg
+## 4. Fire opens the escape route
 
-![Feuer öffnet den Fluchtweg](images/scenarios/fire_escape.png)
+![Fire opens the escape route](images/scenarios/fire_escape.png)
 
-Tagesmodus Sonnenschutz, der Behang ist mittags verschattet. Ein kurzer
-**Feueralarm** (13:00–13:30) fährt den als Fluchtweg markierten Behang sofort
-vollständig auf (100 %, Reason **FIRE**) und bricht dabei sämtliche Constraints
-(Frost, Mindest-Bewegungsintervall) – Lebenssicherheit vor Motorschutz. Nach dem
-Alarm kehrt die Automatik in den Sonnenschutz zurück.
+Day mode sun protection, the cover is shaded at midday. A short **fire alarm**
+(13:00–13:30) immediately drives the cover marked as an escape route fully open
+(100 %, reason **FIRE**), breaking all constraints (frost, minimum movement
+interval) – life safety before motor protection. After the alarm the automation
+returns to sun protection.
 
-## 5. Einbruch fährt in die Sicherheitsposition
+## 5. Burglary drives to the security position
 
-![Einbruch fährt in die Sicherheitsposition](images/scenarios/burglary.png)
+![Burglary drives to the security position](images/scenarios/burglary.png)
 
-Tagesmodus Sonnenschutz. Am Abend (**21:00–23:00**) meldet die
-Einbruchüberwachung einen Alarm; der Sicherheits-Treiber fährt den Behang in die
-konfigurierte Einbruchsposition (hier 0 %, vollständig geschlossen, Reason
-**BURGLARY**) und **erzwingt** sie aktiv. Nach dem Alarm übernimmt wieder die
-Tagesautomatik. Die Zielposition ist konfigurierbar (`burglary_position`); ohne
-explizite Vorgabe hält der Treiber stattdessen die aktuelle Position.
+Day mode sun protection. In the evening (**21:00–23:00**) the burglary
+monitoring reports an alarm; the safety driver moves the cover to the configured
+burglary position (here 0 %, fully closed, reason **BURGLARY**) and **enforces**
+it actively. After the alarm the day automation takes over again. The target
+position is configurable (`burglary_position`); without an explicit value the
+driver holds the current position instead.

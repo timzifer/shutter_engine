@@ -5,10 +5,11 @@ core test suite still runs when matplotlib is not installed.
 
 Layout (shared time axis, 0–24 h):
 
-1. **Umwelt** — sun elevation (left axis) and indoor temperature (right axis).
-2. **Zustände** — discrete event/condition lanes (sun in funnel, bright enough,
+1. **Environment** — sun elevation (left axis) and indoor temperature (right
+   axis).
+2. **States** — discrete event/condition lanes (sun in funnel, bright enough,
    lock, fire, burglary …) drawn as filled bands while active.
-3. **Ausgabe** — the resolver output: cover position and slat tilt, with the
+3. **Output** — the resolver output: cover position and slat tilt, with the
    decision reason shown as coloured background bands.
 """
 
@@ -46,12 +47,12 @@ _REASON_COLORS = {
 
 #: Discrete lanes for the middle panel: (attribute, label).
 _STATE_LANES = (
-    ("sun_in_funnel", "Sonne im Funnel"),
-    ("bright_enough", "hell genug"),
-    ("heat_over_max", "über Max-Temp"),
-    ("locked", "gesperrt"),
-    ("fire_active", "Feuer"),
-    ("burglary_active", "Einbruch"),
+    ("sun_in_funnel", "sun in funnel"),
+    ("bright_enough", "bright enough"),
+    ("heat_over_max", "over max temp"),
+    ("locked", "locked"),
+    ("fire_active", "fire"),
+    ("burglary_active", "burglary"),
 )
 
 
@@ -88,20 +89,20 @@ def render_scenario(frames: list[Frame], scenario: Scenario, out_path: Path) -> 
     fig.suptitle(scenario.title, fontsize=14, fontweight="bold")
 
     # -- Panel 1: environment ------------------------------------------------
-    ax_env.plot(hours, [f.elevation for f in frames], color="#fb8c00", label="Sonnenelevation (°)")
+    ax_env.plot(hours, [f.elevation for f in frames], color="#fb8c00", label="sun elevation (°)")
     ax_env.axhline(0.0, color="#bbbbbb", lw=0.8, ls=":")
     ax_env.set_ylabel("Elevation (°)", color="#fb8c00")
     ax_env.tick_params(axis="y", labelcolor="#fb8c00")
     ax_env.set_ylim(-10, 90)
 
     ax_temp = ax_env.twinx()
-    ax_temp.plot(hours, [f.room_temp for f in frames], color="#e53935", label="Innenraumtemp. (°C)")
-    ax_temp.set_ylabel("Temperatur (°C)", color="#e53935")
+    ax_temp.plot(hours, [f.room_temp for f in frames], color="#e53935", label="indoor temp. (°C)")
+    ax_temp.set_ylabel("Temperature (°C)", color="#e53935")
     ax_temp.tick_params(axis="y", labelcolor="#e53935")
 
     lines = ax_env.get_lines()[:1] + ax_temp.get_lines()
     ax_env.legend(lines, [ln.get_label() for ln in lines], loc="upper left", fontsize=8)
-    ax_env.set_title("Umwelt: Sonnenstand & Innenraumtemperatur", fontsize=9, loc="left")
+    ax_env.set_title("Environment: sun position & indoor temperature", fontsize=9, loc="left")
 
     # -- Panel 2: discrete state lanes --------------------------------------
     lane_labels: list[str] = []
@@ -123,7 +124,7 @@ def render_scenario(frames: list[Frame], scenario: Scenario, out_path: Path) -> 
     ax_state.set_yticks([i + 0.5 for i in range(len(_STATE_LANES))])
     ax_state.set_yticklabels(lane_labels, fontsize=8)
     ax_state.set_ylim(0, len(_STATE_LANES))
-    ax_state.set_title("Zustände & Ereignisse (Entity-States)", fontsize=9, loc="left")
+    ax_state.set_title("States & events (entity states)", fontsize=9, loc="left")
     ax_state.grid(True, axis="x", ls=":", alpha=0.4)
 
     # -- Panel 3: resolver output -------------------------------------------
@@ -141,7 +142,7 @@ def render_scenario(frames: list[Frame], scenario: Scenario, out_path: Path) -> 
         color="#1e88e5",
         lw=2.0,
         drawstyle="steps-post",
-        label="Coverposition (%)",
+        label="cover position (%)",
     )
     tilts = [f.tilt for f in frames]
     if any(t is not None for t in tilts):
@@ -152,12 +153,12 @@ def render_scenario(frames: list[Frame], scenario: Scenario, out_path: Path) -> 
             lw=1.3,
             ls="--",
             drawstyle="steps-post",
-            label="Lamellen-Tilt (%)",
+            label="slat tilt (%)",
         )
     ax_out.set_ylim(-5, 105)
-    ax_out.set_ylabel("Position / Tilt (%)")
-    ax_out.set_xlabel("Uhrzeit (Stunden)")
-    ax_out.set_title("Ausgabe: Coverstellung & Entscheidungs-Reason", fontsize=9, loc="left")
+    ax_out.set_ylabel("Position / tilt (%)")
+    ax_out.set_xlabel("Time of day (hours)")
+    ax_out.set_title("Output: cover position & decision reason", fontsize=9, loc="left")
     ax_out.grid(True, ls=":", alpha=0.4)
 
     reason_handles = [

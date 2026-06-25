@@ -28,12 +28,12 @@ def _h(hour: float) -> int:
 
 SUN_PROTECTION_DAY = Scenario(
     name="sun_protection_day",
-    title="Sonnenschutz an einem klaren Tag",
+    title="Sun protection on a clear day",
     description=(
-        "Tagesmodus Sonnenschutz. Sobald die Sonne in den Funnel steigt und es "
-        "hell genug ist, verschattet der Treiber auf 80 %; die Lamellen tracken "
-        "die Sonnenelevation. Am Abend, wenn die Helligkeit unter die "
-        "Hysterese-Schwelle fällt, öffnet die Behang wieder."
+        "Day mode sun protection. As soon as the sun enters the funnel and it is "
+        "bright enough, the driver shades to 80 %; the slats track the sun "
+        "elevation. In the evening, when the brightness drops below the lower "
+        "hysteresis threshold, the cover opens again."
     ),
     controller=ControllerParams(day_mode=DayMode.SUN_PROTECTION),
     inputs=build_day(),
@@ -46,12 +46,12 @@ SUN_PROTECTION_DAY = Scenario(
 
 HEAT_PROTECTION_HOT_DAY = Scenario(
     name="heat_protection_hot_day",
-    title="Hitzeschutz an einem heißen Tag",
+    title="Heat protection on a hot day",
     description=(
-        "Tagesmodus Hitzeschutz mit Maximaltemperatur 24 °C. Über den Tag "
-        "klettert die Raumtemperatur; sobald sie 24 °C überschreitet (oder die "
-        "Sonne direkt verschattet), schließt der Behang vollständig (0 %) zum "
-        "aktiven Kühlen. Kühlt der Raum ab, öffnet er wieder."
+        "Day mode heat protection with a maximum temperature of 24 °C. Over the "
+        "day the room temperature climbs; as soon as it exceeds 24 °C (or the sun "
+        "directly shades), the cover closes fully (0 %) for active cooling. Once "
+        "the room cools down, it opens again."
     ),
     controller=ControllerParams(day_mode=DayMode.HEAT_PROTECTION, max_temp=24.0),
     inputs=build_day(base_temp=21.0, temp_swing=8.0),
@@ -72,12 +72,12 @@ def _lock_window(raw: RawInput) -> RawInput:
 
 MANUAL_LOCK = Scenario(
     name="manual_lock",
-    title="Manuelle Sperre hält die Position",
+    title="Manual lock holds the position",
     description=(
-        "Tagesmodus Sonnenschutz, aber von 07:30 bis 13:00 ist die manuelle "
-        "Sperre aktiv. Obwohl Sonne und Helligkeit längst eine Verschattung "
-        "auslösen würden, hält der Behang seine Position (Reason LOCKED). Erst "
-        "nach Aufheben der Sperre um 13:00 verschattet die Automatik auf 80 %."
+        "Day mode sun protection, but the manual lock is active from 07:30 to "
+        "13:00. Even though the sun and brightness would have long triggered "
+        "shading, the cover holds its position (reason LOCKED). Only after the "
+        "lock is released at 13:00 does the automation shade to 80 %."
     ),
     controller=ControllerParams(day_mode=DayMode.SUN_PROTECTION),
     inputs=build_day(_lock_window),
@@ -98,13 +98,12 @@ def _fire_window(raw: RawInput) -> RawInput:
 
 FIRE_ESCAPE = Scenario(
     name="fire_escape",
-    title="Feuer öffnet den Fluchtweg",
+    title="Fire opens the escape route",
     description=(
-        "Tagesmodus Sonnenschutz, der Behang ist mittags verschattet. Ein kurzer "
-        "Feueralarm (13:00–13:30) fährt den als Fluchtweg markierten Behang "
-        "sofort vollständig auf (100 %, Reason FIRE) und bricht dabei sämtliche "
-        "Constraints. Nach dem Alarm kehrt die Automatik in den Sonnenschutz "
-        "zurück."
+        "Day mode sun protection, the cover is shaded at midday. A short fire "
+        "alarm (13:00–13:30) immediately drives the cover marked as an escape "
+        "route fully open (100 %, reason FIRE), breaking all constraints. After "
+        "the alarm the automation returns to sun protection."
     ),
     controller=ControllerParams(day_mode=DayMode.SUN_PROTECTION),
     inputs=build_day(_fire_window),
@@ -125,13 +124,12 @@ def _burglary_window(raw: RawInput) -> RawInput:
 
 BURGLARY = Scenario(
     name="burglary",
-    title="Einbruch fährt in die Sicherheitsposition",
+    title="Burglary drives to the security position",
     description=(
-        "Tagesmodus Sonnenschutz. Am Abend (21:00–23:00) meldet die "
-        "Einbruchüberwachung einen Alarm; der Sicherheits-Treiber fährt den "
-        "Behang in die konfigurierte Einbruchsposition (hier 0 %, vollständig "
-        "geschlossen, Reason BURGLARY) und erzwingt sie. Nach dem Alarm "
-        "übernimmt wieder die Tagesautomatik."
+        "Day mode sun protection. In the evening (21:00–23:00) the burglary "
+        "monitoring reports an alarm; the safety driver moves the cover to the "
+        "configured burglary position (here 0 %, fully closed, reason BURGLARY) "
+        "and enforces it. After the alarm the day automation takes over again."
     ),
     controller=ControllerParams(day_mode=DayMode.SUN_PROTECTION, burglary_position=0),
     inputs=build_day(_burglary_window),
